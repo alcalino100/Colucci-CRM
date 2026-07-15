@@ -52,7 +52,7 @@ export default function PainelCorretorPage() {
           ))}
         </div>
       ) : (
-        <KanbanBoard leads={myLeads} showCorretor={isGestor} currentCorretorId={user.id} />
+        <KanbanBoard leads={myLeads} showCorretor={isGestor} currentCorretorId={user.id} isGestor={isGestor} />
       )}
 
       <Dialog open={novo} onClose={() => setNovo(false)} title="Novo Lead">

@@ -121,7 +121,7 @@ export default function DashboardGestaoPage() {
             {CORRETORES.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </Select>
         </div>
-        <KanbanBoard leads={kanbanLeads} showCorretor currentCorretorId={CORRETORES[0].id} heightClass="h-[520px]" />
+        <KanbanBoard leads={kanbanLeads} showCorretor currentCorretorId={CORRETORES[0].id} isGestor heightClass="h-[520px]" />
       </div>
 
       {/* Propostas */}

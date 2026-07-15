@@ -36,6 +36,7 @@ export function LeadForm({
   defaultCorretorId,
   showCorretor = false,
   showStatus = true,
+  submitting = false,
   onSubmit,
   onCancel,
 }: {
@@ -43,6 +44,7 @@ export function LeadForm({
   defaultCorretorId: string
   showCorretor?: boolean
   showStatus?: boolean
+  submitting?: boolean
   onSubmit: (v: LeadFormValues) => void
   onCancel: () => void
 }) {
@@ -137,8 +139,8 @@ export function LeadForm({
         <Textarea id="obs" value={v.observacoes} onChange={(e) => set("observacoes", e.target.value)} aria-label="Observações" />
       </div>
       <div className="mt-2 flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit">Salvar</Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>Cancelar</Button>
+        <Button type="submit" disabled={submitting}>{submitting ? "Salvando..." : "Salvar"}</Button>
       </div>
     </form>
   )

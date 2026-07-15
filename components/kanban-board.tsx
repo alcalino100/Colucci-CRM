@@ -5,7 +5,9 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-p
 import { Button } from "@/components/ui/button"
 import { Dialog, Input, Label, Select, Textarea, useToast } from "@/components/ui/primitives"
 import { LeadCard } from "@/components/lead-card"
+import { LeadForm, type LeadFormValues } from "@/components/lead-form"
 import { useLeads } from "@/lib/leads-store"
+import { useAuth } from "@/lib/auth-context"
 import { LEAD_STATUSES, STATUS_ACCENT, STATUS_LABEL, brl } from "@/lib/labels"
 import { CORRETORES, userName, type Lead, type LeadStatus } from "@/lib/mock-data"
 
@@ -13,17 +15,53 @@ export function KanbanBoard({
   leads,
   showCorretor = false,
   currentCorretorId,
+  isGestor = false,
   heightClass = "h-[calc(100vh-13rem)]",
 }: {
   leads: Lead[]
   showCorretor?: boolean
   currentCorretorId: string
+  isGestor?: boolean
   heightClass?: string
 }) {
-  const { updateLead, addVisit, addInteraction, notify } = useLeads()
+  const { updateLead, deleteLead, addVisit, addInteraction, notify, logChange } = useLeads()
+  const { user } = useAuth()
   const toast = useToast()
   const [visitLead, setVisitLead] = useState<Lead | null>(null)
   const [propLead, setPropLead] = useState<Lead | null>(null)
+  const [editLead, setEditLead] = useState<Lead | null>(null)
+  const [delLead, setDelLead] = useState<Lead | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const usuarioNome = user ? userName(user.id) : "Sistema"
+  const canManage = (lead: Lead) => isGestor || lead.corretorId === currentCorretorId
+
+  function handleEditSubmit(v: LeadFormValues) {
+    if (!editLead) return
+    setSubmitting(true)
+    const fields: (keyof LeadFormValues)[] = ["nome", "telefone", "email", "imovelRef", "origem", "observacoes", "status", "valorNegociacao", "corretorId"]
+    for (const f of fields) {
+      const before = (editLead as any)[f]
+      const after = (v as any)[f]
+      if (String(before ?? "") !== String(after ?? "")) {
+        logChange({ usuario: usuarioNome, acao: "edicao", entidade: "lead", campo: f, valorAnterior: String(before ?? "-"), valorNovo: String(after ?? "-") })
+      }
+    }
+    setTimeout(() => {
+      updateLead(editLead.id, v)
+      setSubmitting(false)
+      setEditLead(null)
+      toast("Lead atualizado com sucesso")
+    }, 500)
+  }
+
+  function handleDeleteConfirm() {
+    if (!delLead) return
+    logChange({ usuario: usuarioNome, acao: "exclusao", entidade: "lead", campo: "lead", valorAnterior: `${delLead.nome} — ${delLead.imovelRef || "sem imóvel"}`, valorNovo: "-" })
+    deleteLead(delLead.id)
+    setDelLead(null)
+    toast("Lead excluído com sucesso")
+  }
 
   // visit form
   const [vData, setVData] = useState("")
@@ -116,7 +154,7 @@ export function KanbanBoard({
                               style={dp.draggableProps.style}
                               className={ds.isDragging ? "opacity-60" : ""}
                             >
-                              <LeadCard lead={lead} showCorretor={showCorretor} />
+                              <LeadCard lead={lead} showCorretor={showCorretor} canManage={canManage(lead)} onEdit={setEditLead} onDelete={setDelLead} />
                             </div>
                           )}
                         </Draggable>
@@ -178,6 +216,33 @@ export function KanbanBoard({
             <Button type="submit">Registrar proposta</Button>
           </div>
         </form>
+      </Dialog>
+
+      <Dialog open={!!editLead} onClose={() => setEditLead(null)} title="Editar Lead">
+        {editLead && (
+          <LeadForm
+            initial={editLead}
+            defaultCorretorId={editLead.corretorId}
+            showCorretor={isGestor}
+            showStatus
+            submitting={submitting}
+            onSubmit={handleEditSubmit}
+            onCancel={() => setEditLead(null)}
+          />
+        )}
+      </Dialog>
+
+      <Dialog open={!!delLead} onClose={() => setDelLead(null)} title="Excluir Lead">
+        <p className="text-sm text-muted-foreground">
+          Tem certeza que deseja excluir este lead? Esta ação não pode ser desfeita.
+        </p>
+        {delLead && (
+          <p className="mt-2 text-sm font-medium text-foreground">{delLead.nome} — {delLead.imovelRef || "sem imóvel"}</p>
+        )}
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => setDelLead(null)}>Cancelar</Button>
+          <Button type="button" className="bg-destructive text-white hover:bg-destructive/90" onClick={handleDeleteConfirm}>Excluir</Button>
+        </div>
       </Dialog>
     </>
   )

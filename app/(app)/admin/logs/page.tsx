@@ -4,12 +4,14 @@ import { Fragment, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { useLeads } from "@/lib/leads-store"
 import { Badge, Card, CardHeader, CardTitle, Select, Skeleton, Table, TD, TH, THead, TR } from "@/components/ui/primitives"
 import { ACCESS_LABEL, ACTION_LABEL, ACTION_VARIANT, fmtDateTime } from "@/lib/labels"
-import { ACCESS_LOGS, CHANGE_LOGS, USERS } from "@/lib/mock-data"
+import { ACCESS_LOGS, USERS } from "@/lib/mock-data"
 
 export default function LogsPage() {
   const { user } = useAuth()
+  const { changeLogs } = useLeads()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [fUser, setFUser] = useState("todos")
@@ -29,14 +31,14 @@ export default function LogsPage() {
 
   const changes = useMemo(() => {
     const limite = new Date(); limite.setDate(limite.getDate() - Number(dias))
-    return CHANGE_LOGS.filter((c) => {
+    return changeLogs.filter((c) => {
       const mu = fUser === "todos" || c.usuario === fUser
       const ma = fAcao === "todos" || c.acao === fAcao
       const me = fEntidade === "todos" || c.entidade === fEntidade
       const md = dias === "todos" || new Date(c.dataHora) >= limite
       return mu && ma && me && md
     })
-  }, [fUser, fAcao, fEntidade, dias])
+  }, [fUser, fAcao, fEntidade, dias, changeLogs])
 
   if (user && user.role !== "gestor") return null
 

@@ -5,6 +5,8 @@ import {
   LEADS,
   VISITS,
   USERS,
+  CHANGE_LOGS,
+  type ChangeLog,
   type Interaction,
   type Lead,
   type Notification,
@@ -17,13 +19,16 @@ interface Store {
   visits: Visit[]
   notifications: Notification[]
   users: User[]
+  changeLogs: ChangeLog[]
   addLead: (l: Omit<Lead, "id" | "criadoEm" | "atualizadoEm" | "interacoes">) => void
   updateLead: (id: string, patch: Partial<Lead>) => void
+  deleteLead: (id: string) => void
   addInteraction: (leadId: string, i: Omit<Interaction, "id" | "timestamp">) => void
   getLead: (id: string) => Lead | undefined
   addVisit: (v: Omit<Visit, "id">) => void
   notify: (texto: string) => void
   markNotificationsRead: () => void
+  logChange: (e: Omit<ChangeLog, "id" | "dataHora">) => void
   addUser: (u: Omit<User, "id" | "criadoEm">) => { ok: boolean; error?: string }
   updateUser: (id: string, patch: Partial<User>) => { ok: boolean; error?: string }
 }
@@ -35,6 +40,14 @@ export function LeadsProvider({ children }: { children: React.ReactNode }) {
   const [visits, setVisits] = useState<Visit[]>(VISITS)
   const [users, setUsers] = useState<User[]>(USERS)
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [changeLogs, setChangeLogs] = useState<ChangeLog[]>(CHANGE_LOGS)
+
+  const logChange: Store["logChange"] = (e) => {
+    setChangeLogs((prev) => [
+      { ...e, id: `cl${Date.now()}${Math.random().toString(36).slice(2, 6)}`, dataHora: new Date().toISOString() },
+      ...prev,
+    ])
+  }
 
   const notify = useCallback((texto: string) => {
     setNotifications((prev) => [{ id: `n${Date.now()}`, texto, timestamp: new Date().toISOString(), read: false }, ...prev])
@@ -55,6 +68,9 @@ export function LeadsProvider({ children }: { children: React.ReactNode }) {
     setLeads((prev) => prev.map((l) => (l.id === leadId
       ? { ...l, atualizadoEm: new Date().toISOString(), interacoes: [...l.interacoes, { ...i, id: `i${Date.now()}`, timestamp: new Date().toISOString() }] }
       : l)))
+  }
+  const deleteLead: Store["deleteLead"] = (id) => {
+    setLeads((prev) => prev.filter((l) => l.id !== id))
   }
   const getLead = (id: string) => leads.find((l) => l.id === id)
 
@@ -78,7 +94,7 @@ export function LeadsProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <Ctx.Provider value={{ leads, visits, notifications, users, addLead, updateLead, addInteraction, getLead, addVisit, notify, markNotificationsRead, addUser, updateUser }}>
+    <Ctx.Provider value={{ leads, visits, notifications, users, changeLogs, addLead, updateLead, deleteLead, addInteraction, getLead, addVisit, notify, markNotificationsRead, logChange, addUser, updateUser }}>
       {children}
     </Ctx.Provider>
   )
