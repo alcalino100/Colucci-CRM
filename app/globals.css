@@ -4,6 +4,24 @@
 
 @custom-variant dark (&:is(.dark *));
 
+.kanban-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #54595f transparent;
+}
+.kanban-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+.kanban-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.kanban-scroll::-webkit-scrollbar-thumb {
+  background-color: #54595f;
+  border-radius: 9999px;
+}
+.kanban-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: #45494e;
+}
+
 @theme inline {
   --font-sans: var(--font-inter);
   --font-display: var(--font-jakarta);

@@ -91,7 +91,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <div className="flex flex-1 flex-col lg:pl-64">
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden lg:pl-64">
           {/* Topbar */}
           <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:px-6">
             <button onClick={() => setOpen(true)} aria-label="Abrir menu" className="rounded-md p-2 text-muted-foreground hover:bg-muted lg:hidden">
@@ -110,7 +110,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main className="flex-1 p-4 lg:p-6">{children}</main>
+          <main className="min-w-0 flex-1 overflow-x-hidden p-4 lg:p-6">{children}</main>
         </div>
       </div>
       </LeadsProvider>

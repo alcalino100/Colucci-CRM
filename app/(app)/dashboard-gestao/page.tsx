@@ -67,7 +67,7 @@ export default function DashboardGestaoPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <div>
         <h1 className="font-display text-2xl font-bold">Dashboard de Gestão</h1>
         <p className="text-sm text-muted-foreground">Visão geral da equipe, funil e propostas.</p>
@@ -113,7 +113,7 @@ export default function DashboardGestaoPage() {
       </div>
 
       {/* Kanban geral */}
-      <div>
+      <div className="min-w-0">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-display text-lg font-semibold">Kanban Geral</h2>
           <Select value={filterCorretor} onChange={(e) => setFilterCorretor(e.target.value)} aria-label="Filtrar por corretor" className="w-52">
@@ -121,7 +121,7 @@ export default function DashboardGestaoPage() {
             {CORRETORES.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </Select>
         </div>
-        <KanbanBoard leads={kanbanLeads} showCorretor currentCorretorId={CORRETORES[0].id} />
+        <KanbanBoard leads={kanbanLeads} showCorretor currentCorretorId={CORRETORES[0].id} heightClass="h-[520px]" />
       </div>
 
       {/* Propostas */}

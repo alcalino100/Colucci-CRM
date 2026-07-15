@@ -32,7 +32,7 @@ export default function PainelCorretorPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold">Painel do Corretor</h1>
@@ -42,9 +42,9 @@ export default function PainelCorretorPage() {
       </div>
 
       {loading ? (
-        <div className="flex gap-4 overflow-hidden">
+        <div className="flex w-full gap-4 overflow-hidden">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex w-72 shrink-0 flex-col gap-2">
+            <div key={i} className="flex w-72 flex-shrink-0 flex-col gap-2">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-28 w-full" />
               <Skeleton className="h-28 w-full" />

@@ -13,10 +13,12 @@ export function KanbanBoard({
   leads,
   showCorretor = false,
   currentCorretorId,
+  heightClass = "h-[calc(100vh-13rem)]",
 }: {
   leads: Lead[]
   showCorretor?: boolean
   currentCorretorId: string
+  heightClass?: string
 }) {
   const { updateLead, addVisit, addInteraction, notify } = useLeads()
   const toast = useToast()
@@ -84,21 +86,22 @@ export function KanbanBoard({
   return (
     <>
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="kanban-scroll w-full flex-1 overflow-x-auto overflow-y-hidden pb-3">
+          <div className={`flex w-max flex-nowrap gap-4 ${heightClass}`}>
           {LEAD_STATUSES.map((status) => {
             const col = byStatus(status)
             return (
               <Droppable droppableId={status} key={status}>
                 {(provided, snapshot) => (
-                  <div className="flex w-72 shrink-0 flex-col">
-                    <div className="mb-2 flex items-center justify-between rounded-t-lg border-t-4 bg-card px-3 py-2 shadow-sm" style={{ borderTopColor: STATUS_ACCENT[status] }}>
+                  <div className="flex w-72 flex-shrink-0 flex-col">
+                    <div className="mb-2 flex shrink-0 items-center justify-between rounded-t-lg border-t-4 bg-card px-3 py-2 shadow-sm" style={{ borderTopColor: STATUS_ACCENT[status] }}>
                       <span className="font-display text-sm font-semibold">{STATUS_LABEL[status]}</span>
                       <span className="flex size-5 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">{col.length}</span>
                     </div>
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`flex min-h-32 flex-1 flex-col gap-2 rounded-lg p-2 transition-colors ${snapshot.isDraggingOver ? "bg-primary/10" : "bg-muted/40"}`}
+                      className={`flex min-h-32 flex-1 flex-col gap-2 overflow-y-auto rounded-lg p-2 transition-colors ${snapshot.isDraggingOver ? "bg-primary/10" : "bg-muted/40"}`}
                     >
                       {col.length === 0 && !snapshot.isDraggingOver && (
                         <p className="px-2 py-6 text-center text-xs text-muted-foreground">Nenhum lead nesta etapa</p>
@@ -125,6 +128,7 @@ export function KanbanBoard({
               </Droppable>
             )
           })}
+          </div>
         </div>
       </DragDropContext>
 
