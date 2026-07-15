@@ -1,206 +1,183 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { Search, TrendingUp, Users, Handshake, Wallet } from "lucide-react"
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts"
+import { Users, CalendarCheck, TrendingUp, CircleDollarSign } from "lucide-react"
 import { useLeads } from "@/lib/leads-store"
-import { LeadForm, type LeadFormValues } from "@/components/lead-form"
-import { Button } from "@/components/ui/button"
-import { Badge, Card, CardContent, CardHeader, CardTitle, Dialog, Input, Select, Skeleton, Table, TD, TH, THead, TR, useToast } from "@/components/ui/primitives"
-import { brl, fmtDate, LEAD_STATUSES, STATUS_LABEL, STATUS_VARIANT } from "@/lib/labels"
-import { CORRETORES, userName, type Lead } from "@/lib/mock-data"
+import { Card, CardContent, CardHeader, CardTitle, Badge, Select, Skeleton } from "@/components/ui/primitives"
+import { KanbanBoard } from "@/components/kanban-board"
+import { brl, fmtDate } from "@/lib/labels"
+import { CORRETORES, ORIGENS, userName, type Origem } from "@/lib/mock-data"
 
-const CHART = ["#0f4c5c", "#d97706", "#334155", "#0e7490", "#94a3b8"]
+const COLORS = ["#b22222", "#54595f", "#c41e24", "#a1a1aa"]
 
 export default function DashboardGestaoPage() {
-  const { leads, updateLead } = useLeads()
-  const toast = useToast()
+  const { leads, visits } = useLeads()
   const [loading, setLoading] = useState(true)
-  const [q, setQ] = useState("")
-  const [fCorretor, setFCorretor] = useState("todos")
-  const [fStatus, setFStatus] = useState("todos")
-  const [fPeriodo, setFPeriodo] = useState("30")
-  const [editing, setEditing] = useState<Lead | null>(null)
+  const [filterCorretor, setFilterCorretor] = useState("todos")
+  const [subAba, setSubAba] = useState<"andamento" | "fechadas">("andamento")
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 700)
+    const t = setTimeout(() => setLoading(false), 600)
     return () => clearTimeout(t)
   }, [])
 
-  const ativos = leads.filter((l) => l.status !== "fechado" && l.status !== "perdido")
-  const negociando = leads.filter((l) => l.status === "negociando")
-  const valorTotal = negociando.reduce((s, l) => s + (l.valorNegociacao ?? 0), 0)
-  const fechados = leads.filter((l) => l.status === "fechado").length
-  const taxa = leads.length ? Math.round((fechados / leads.length) * 100) : 0
+  const kpis = useMemo(() => {
+    const ativos = leads.filter((l) => !["fechado", "perdido"].includes(l.status)).length
+    const weekStart = new Date(); weekStart.setHours(0, 0, 0, 0); weekStart.setDate(weekStart.getDate() - weekStart.getDay())
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7)
+    const visitasSemana = visits.filter((v) => {
+      const d = new Date(v.data + "T00:00:00")
+      return d >= weekStart && d < weekEnd
+    }).length
+    const emProposta = leads.filter((l) => ["negociando", "proposta enviada"].includes(l.status))
+    const valorPropostas = emProposta.reduce((s, l) => s + (l.valorNegociacao ?? 0), 0)
+    const valorFechado = leads.filter((l) => l.status === "fechado").reduce((s, l) => s + (l.valorNegociacao ?? 0), 0)
+    return { ativos, visitasSemana, valorPropostas, valorFechado }
+  }, [leads, visits])
 
-  const porCorretor = CORRETORES.map((c) => ({ nome: c.nome.split(" ")[0], leads: leads.filter((l) => l.corretorId === c.id).length }))
+  const leadsPorCorretor = useMemo(
+    () => CORRETORES.map((c) => ({ nome: c.nome.split(" ")[0], total: leads.filter((l) => l.corretorId === c.id).length })),
+    [leads],
+  )
+  const origemData = useMemo(
+    () => ORIGENS.map((o) => ({ name: o, value: leads.filter((l) => l.origem === (o as Origem)).length })).filter((d) => d.value > 0),
+    [leads],
+  )
 
-  const porStatus = LEAD_STATUSES.map((s) => ({ name: STATUS_LABEL[s], value: leads.filter((l) => l.status === s).length })).filter((x) => x.value > 0)
+  const kanbanLeads = filterCorretor === "todos" ? leads : leads.filter((l) => l.corretorId === filterCorretor)
 
-  const evolucao = useMemo(() => {
-    const days = Number(fPeriodo)
-    const arr: { dia: string; leads: number }[] = []
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i)
-      const next = new Date(d); next.setDate(next.getDate() + 1)
-      const count = leads.filter((l) => { const c = new Date(l.criadoEm); return c >= d && c < next }).length
-      arr.push({ dia: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), leads: count })
-    }
-    return arr
-  }, [leads, fPeriodo])
+  const propostasAndamento = leads.filter((l) => ["negociando", "proposta enviada"].includes(l.status))
+  const propostasFechadas = leads.filter((l) => l.status === "fechado")
+  const listaProp = subAba === "andamento" ? propostasAndamento : propostasFechadas
+  const totalAba = listaProp.reduce((s, l) => s + (l.valorNegociacao ?? 0), 0)
 
-  const filtered = useMemo(() => {
-    const limite = new Date(); limite.setDate(limite.getDate() - Number(fPeriodo))
-    return leads.filter((l) => {
-      const mq = `${l.nome} ${l.telefone}`.toLowerCase().includes(q.toLowerCase())
-      const mc = fCorretor === "todos" || l.corretorId === fCorretor
-      const ms = fStatus === "todos" || l.status === fStatus
-      const mp = new Date(l.criadoEm) >= limite
-      return mq && mc && ms && mp
-    })
-  }, [leads, q, fCorretor, fStatus, fPeriodo])
-
-  const semDados = evolucao.every((e) => e.leads === 0)
-
-  function handleEdit(v: LeadFormValues) {
-    updateLead(editing!.id, v)
-    setEditing(null)
-    toast("Lead atualizado.")
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 w-full" />)}
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Skeleton className="h-72 w-full" /><Skeleton className="h-72 w-full" />
+        </div>
+        <Skeleton className="h-64 w-full" />
+      </div>
+    )
   }
-
-  const kpis = [
-    { label: "Leads ativos", value: ativos.length, icon: Users },
-    { label: "Negociações em andamento", value: negociando.length, icon: Handshake },
-    { label: "Valor em negociação", value: brl(valorTotal), icon: Wallet },
-    { label: "Taxa de conversão", value: `${taxa}%`, icon: TrendingUp },
-  ]
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="font-display text-2xl font-bold">Dashboard de Gestão</h1>
-        <p className="text-sm text-muted-foreground">Visão consolidada de todos os corretores.</p>
+        <p className="text-sm text-muted-foreground">Visão geral da equipe, funil e propostas.</p>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
-          : kpis.map((k) => (
-            <Card key={k.label}>
-              <CardContent className="flex items-center justify-between p-5">
-                <div>
-                  <p className="text-sm text-muted-foreground">{k.label}</p>
-                  <p className="mt-1 font-display text-2xl font-bold">{k.value}</p>
-                </div>
-                <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><k.icon className="size-5" /></div>
-              </CardContent>
-            </Card>
-          ))}
+        <Kpi icon={Users} label="Leads ativos" value={String(kpis.ativos)} />
+        <Kpi icon={CalendarCheck} label="Visitas esta semana" value={String(kpis.visitasSemana)} />
+        <Kpi icon={TrendingUp} label="Valor em propostas" value={brl(kpis.valorPropostas)} />
+        <Kpi icon={CircleDollarSign} label="Valor total fechado" value={brl(kpis.valorFechado)} accent />
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChartCard title="Leads por corretor" loading={loading}>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={porCorretor}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="nome" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
-              <Tooltip />
-              <Bar dataKey="leads" fill="#0f4c5c" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="Distribuição por status" loading={loading}>
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={porStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
-                {porStatus.map((_, i) => <Cell key={i} fill={CHART[i % CHART.length]} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title={`Leads criados (últimos ${fPeriodo} dias)`} loading={loading} className="lg:col-span-2">
-          {semDados ? (
-            <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">Sem dados no período selecionado.</div>
-          ) : (
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle>Leads por corretor</CardTitle></CardHeader>
+          <CardContent>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={evolucao}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="dia" fontSize={11} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+              <BarChart data={leadsPorCorretor}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" vertical={false} />
+                <XAxis dataKey="nome" tick={{ fontSize: 12 }} stroke="#71717a" tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#71717a" tickLine={false} axisLine={false} />
                 <Tooltip />
-                <Line type="monotone" dataKey="leads" stroke="#d97706" strokeWidth={2} dot={false} />
-              </LineChart>
+                <Bar dataKey="total" fill="#b22222" radius={[4, 4, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
-          )}
-        </ChartCard>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Origem dos leads</CardTitle></CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={origemData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={(e: any) => `${e.name} (${e.value})`}>
+                  {origemData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Todos os contatos */}
-      <Card>
-        <CardHeader><CardTitle>Todos os contatos</CardTitle></CardHeader>
-        <div className="flex flex-col gap-3 px-5 pb-4 sm:flex-row sm:flex-wrap">
-          <div className="relative sm:max-w-xs sm:flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome ou telefone" className="pl-9" aria-label="Buscar" />
-          </div>
-          <Select value={fCorretor} onChange={(e) => setFCorretor(e.target.value)} aria-label="Filtrar corretor" className="sm:w-44">
-            <option value="todos">Todos corretores</option>
+      {/* Kanban geral */}
+      <div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg font-semibold">Kanban Geral</h2>
+          <Select value={filterCorretor} onChange={(e) => setFilterCorretor(e.target.value)} aria-label="Filtrar por corretor" className="w-52">
+            <option value="todos">Todos os corretores</option>
             {CORRETORES.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </Select>
-          <Select value={fStatus} onChange={(e) => setFStatus(e.target.value)} aria-label="Filtrar status" className="sm:w-44">
-            <option value="todos">Todos status</option>
-            {LEAD_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-          </Select>
-          <Select value={fPeriodo} onChange={(e) => setFPeriodo(e.target.value)} aria-label="Filtrar período" className="sm:w-40">
-            <option value="7">Últimos 7 dias</option>
-            <option value="30">Últimos 30 dias</option>
-            <option value="90">Últimos 90 dias</option>
-          </Select>
         </div>
-        {loading ? (
-          <div className="flex flex-col gap-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-        ) : filtered.length === 0 ? (
-          <p className="p-12 text-center text-sm text-muted-foreground">Nenhum lead encontrado para os filtros selecionados.</p>
-        ) : (
-          <Table>
-            <THead>
-              <TR><TH>Nome</TH><TH>Corretor</TH><TH>Imóvel</TH><TH>Status</TH><TH>Valor</TH><TH>Atualizado</TH><TH>Ações</TH></TR>
-            </THead>
-            <tbody>
-              {filtered.map((l) => (
-                <TR key={l.id}>
-                  <TD className="font-medium">{l.nome}</TD>
-                  <TD className="text-muted-foreground">{userName(l.corretorId)}</TD>
-                  <TD className="text-muted-foreground">{l.imovelRef || "—"}</TD>
-                  <TD><Badge variant={STATUS_VARIANT[l.status]}>{STATUS_LABEL[l.status]}</Badge></TD>
-                  <TD>{brl(l.valorNegociacao)}</TD>
-                  <TD className="text-muted-foreground">{fmtDate(l.atualizadoEm)}</TD>
-                  <TD><Button variant="outline" size="sm" onClick={() => setEditing(l)}>Editar</Button></TD>
-                </TR>
-              ))}
-            </tbody>
-          </Table>
-        )}
-      </Card>
+        <KanbanBoard leads={kanbanLeads} showCorretor currentCorretorId={CORRETORES[0].id} />
+      </div>
 
-      <Dialog open={!!editing} onClose={() => setEditing(null)} title="Editar lead">
-        {editing && <LeadForm initial={editing} defaultCorretorId={editing.corretorId} showCorretor onSubmit={handleEdit} onCancel={() => setEditing(null)} />}
-      </Dialog>
+      {/* Propostas */}
+      <Card>
+        <CardHeader className="pb-0">
+          <CardTitle>Propostas</CardTitle>
+          <div className="mt-3 flex gap-2">
+            <button onClick={() => setSubAba("andamento")} className={tab(subAba === "andamento")}>Em andamento</button>
+            <button onClick={() => setSubAba("fechadas")} className={tab(subAba === "fechadas")}>Aprovadas / Fechadas</button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="mb-3 rounded-lg bg-muted px-4 py-2 text-sm">
+            {subAba === "andamento" ? "Total em andamento: " : "Total fechado: "}
+            <span className="font-display font-bold text-primary">{brl(totalAba)}</span>
+          </div>
+          {listaProp.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma proposta registrada</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {listaProp.map((l) => (
+                <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3">
+                  <div>
+                    <p className="font-medium">{l.nome}</p>
+                    <p className="text-xs text-muted-foreground">{l.imovelRef || "Sem imóvel"} · {userName(l.corretorId)} · {fmtDate(l.atualizadoEm)}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={l.status === "fechado" ? "green" : "accent"}>{l.status === "fechado" ? "Fechado" : l.status === "negociando" ? "Negociando" : "Proposta enviada"}</Badge>
+                    <span className="font-display font-bold text-primary">{brl(l.valorNegociacao)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
 
-function ChartCard({ title, children, loading, className }: { title: string; children: React.ReactNode; loading: boolean; className?: string }) {
+function Kpi({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent?: boolean }) {
   return (
-    <Card className={className}>
-      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
-      <CardContent>{loading ? <Skeleton className="h-[260px] w-full" /> : children}</CardContent>
+    <Card>
+      <CardContent className="flex items-center gap-4 pt-5">
+        <div className={`flex size-11 items-center justify-center rounded-lg ${accent ? "bg-accent/15 text-accent" : "bg-primary/10 text-primary"}`}>
+          <Icon className="size-5" />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="font-display text-xl font-bold">{value}</p>
+        </div>
+      </CardContent>
     </Card>
   )
+}
+
+function tab(active: boolean) {
+  return `rounded-lg px-3 py-1.5 text-sm font-medium transition ${active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`
 }

@@ -3,17 +3,21 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Building2, LayoutDashboard, LogOut, Menu, Users2, Shield, ScrollText, X } from "lucide-react"
+import { CalendarDays, KanbanSquare, LayoutDashboard, LogOut, Menu, KeyRound, Shield, ScrollText, X } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import type { Role } from "@/lib/mock-data"
 import { ToastProvider } from "@/components/ui/primitives"
 import { LeadsProvider } from "@/lib/leads-store"
+import { ColucciLogo } from "@/components/colucci-logo"
+import { NotificationBell } from "@/components/notification-bell"
 import { cn } from "@/lib/utils"
 
 const NAV: { href: string; label: string; icon: any; roles: Role[] }[] = [
-  { href: "/painel-corretor", label: "Meus Leads", icon: Users2, roles: ["corretor", "gestor"] },
+  { href: "/painel-corretor", label: "Kanban", icon: KanbanSquare, roles: ["corretor", "gestor"] },
+  { href: "/agenda", label: "Agenda", icon: CalendarDays, roles: ["corretor", "gestor"] },
   { href: "/dashboard-gestao", label: "Dashboard", icon: LayoutDashboard, roles: ["gestor"] },
   { href: "/admin", label: "Administração", icon: Shield, roles: ["gestor"] },
+  { href: "/admin/acessos", label: "Gestão de Acessos", icon: KeyRound, roles: ["gestor"] },
   { href: "/admin/logs", label: "Logs", icon: ScrollText, roles: ["gestor"] },
 ]
 
@@ -43,15 +47,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const SidebarContent = (
     <>
-      <div className="flex items-center gap-2 px-5 py-5">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-          <Building2 className="size-5" />
-        </div>
-        <span className="font-display text-lg font-bold text-white">ImobCRM</span>
+      <div className="flex items-center px-5 py-5">
+        <ColucciLogo />
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3">
         {items.map((item) => {
-          const active = pathname === item.href
+          const active = item.href === "/admin"
+            ? pathname === "/admin"
+            : pathname === item.href || pathname.startsWith(item.href + "/")
           return (
             <Link key={item.href} href={item.href}
               className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
@@ -95,6 +98,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Menu className="size-5" />
             </button>
             <div className="ml-auto flex items-center gap-3">
+              <NotificationBell />
               <div className="text-right">
                 <p className="text-sm font-medium leading-tight">{user.nome}</p>
                 <p className="text-xs text-muted-foreground">{user.email}</p>

@@ -8,14 +8,14 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta' })
 
 export const metadata: Metadata = {
-  title: 'ImobCRM — Gestão de Leads',
-  description: 'Plataforma de gestão de leads e atendimento para corretores e gestores imobiliários',
+  title: 'Colucci Imóveis — CRM',
+  description: 'CRM de leads, visitas e propostas para corretores e gestores da Colucci Imóveis',
   generator: 'v0.app',
 }
 
 export const viewport: Viewport = {
   colorScheme: 'light',
-  themeColor: '#0f4c5c',
+  themeColor: '#b22222',
 }
 
 export default function RootLayout({

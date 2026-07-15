@@ -1,33 +1,44 @@
 "use client"
 
 import { useState } from "react"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Input, Label, Select, Textarea } from "@/components/ui/primitives"
 import { LEAD_STATUSES, STATUS_LABEL } from "@/lib/labels"
-import { CORRETORES, ORIGENS, PROPERTIES, type Lead, type LeadStatus } from "@/lib/mock-data"
+import { CORRETORES, ORIGENS, PROPERTIES, type Lead, type LeadStatus, type Origem } from "@/lib/mock-data"
 
 export interface LeadFormValues {
   nome: string
   telefone: string
   email: string
   imovelRef: string
-  origem: string
+  origem: Origem
   observacoes: string
   status: LeadStatus
   valorNegociacao?: number
   corretorId: string
 }
 
+const schema = z.object({
+  nome: z.string().trim().min(1, "Informe o nome do lead."),
+  telefone: z.string().trim().min(1, "Informe o telefone."),
+  imovelRef: z.string().min(1, "Selecione o imóvel de referência."),
+  origem: z.enum(["Instagram", "Indicação", "Tráfego Pago", "Outro"]),
+  email: z.string().email("E-mail inválido.").or(z.literal("")),
+})
+
 export function LeadForm({
   initial,
   defaultCorretorId,
   showCorretor = false,
+  showStatus = true,
   onSubmit,
   onCancel,
 }: {
   initial?: Lead
   defaultCorretorId: string
   showCorretor?: boolean
+  showStatus?: boolean
   onSubmit: (v: LeadFormValues) => void
   onCancel: () => void
 }) {
@@ -36,14 +47,14 @@ export function LeadForm({
     telefone: initial?.telefone ?? "",
     email: initial?.email ?? "",
     imovelRef: initial?.imovelRef ?? "",
-    origem: initial?.origem ?? ORIGENS[0],
+    origem: initial?.origem ?? "Instagram",
     observacoes: initial?.observacoes ?? "",
     status: initial?.status ?? "novo",
     valorNegociacao: initial?.valorNegociacao,
     corretorId: initial?.corretorId ?? defaultCorretorId,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const showValor = v.status === "negociando" || v.status === "fechado"
+  const showValor = ["negociando", "proposta enviada", "fechado"].includes(v.status)
 
   function set<K extends keyof LeadFormValues>(k: K, val: LeadFormValues[K]) {
     setV((s) => ({ ...s, [k]: val }))
@@ -51,10 +62,11 @@ export function LeadForm({
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
+    const result = schema.safeParse(v)
     const errs: Record<string, string> = {}
-    if (!v.nome.trim()) errs.nome = "Informe o nome do lead."
-    if (!v.telefone.trim()) errs.telefone = "Informe o telefone."
-    if (v.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) errs.email = "E-mail inválido."
+    if (!result.success) {
+      for (const issue of result.error.issues) errs[issue.path[0] as string] = issue.message
+    }
     if (showValor && (!v.valorNegociacao || v.valorNegociacao <= 0)) errs.valorNegociacao = "Informe o valor da negociação."
     setErrors(errs)
     if (Object.keys(errs).length) return
@@ -77,29 +89,32 @@ export function LeadForm({
           {err("telefone")}
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="email">E-mail</Label>
-          <Input id="email" type="email" value={v.email} onChange={(e) => set("email", e.target.value)} aria-label="E-mail" />
-          {err("email")}
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="imovel">Referência do imóvel</Label>
+          <Label htmlFor="imovel">Referência do imóvel *</Label>
           <Select id="imovel" value={v.imovelRef} onChange={(e) => set("imovelRef", e.target.value)} aria-label="Imóvel">
             <option value="">Selecione...</option>
             {PROPERTIES.map((p) => <option key={p.id} value={p.referencia}>{p.referencia} — {p.tipo}</option>)}
           </Select>
+          {err("imovelRef")}
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="origem">Origem do lead</Label>
-          <Select id="origem" value={v.origem} onChange={(e) => set("origem", e.target.value)} aria-label="Origem">
+          <Label htmlFor="origem">Origem do lead *</Label>
+          <Select id="origem" value={v.origem} onChange={(e) => set("origem", e.target.value as Origem)} aria-label="Origem">
             {ORIGENS.map((o) => <option key={o} value={o}>{o}</option>)}
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="status">Status</Label>
-          <Select id="status" value={v.status} onChange={(e) => set("status", e.target.value as LeadStatus)} aria-label="Status">
-            {LEAD_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-          </Select>
+          <Label htmlFor="email">E-mail</Label>
+          <Input id="email" type="email" value={v.email} onChange={(e) => set("email", e.target.value)} aria-label="E-mail" />
+          {err("email")}
         </div>
+        {showStatus && (
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="status">Status</Label>
+            <Select id="status" value={v.status} onChange={(e) => set("status", e.target.value as LeadStatus)} aria-label="Status">
+              {LEAD_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+            </Select>
+          </div>
+        )}
         {showCorretor && (
           <div className="flex flex-col gap-1">
             <Label htmlFor="corretor">Corretor responsável</Label>

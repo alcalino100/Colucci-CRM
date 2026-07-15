@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Building2, Loader2, Lock, Mail } from "lucide-react"
+import { Loader2, Lock, Mail } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input, Label } from "@/components/ui/primitives"
@@ -36,10 +36,11 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-primary/95 p-4">
       <div className="w-full max-w-md rounded-2xl bg-card p-8 shadow-xl">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Building2 className="size-6" />
-          </div>
-          <h1 className="font-display text-2xl font-bold">ImobCRM</h1>
+          <svg width="52" height="52" viewBox="0 0 48 48" aria-hidden="true" className="mb-4">
+            <polygon points="24,6 44,42 4,42" fill="#54595f" />
+            <polygon points="24,16 35,36 13,36" fill="#c41e24" />
+          </svg>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight">COLUCCI IMÓVEIS</h1>
           <p className="mt-1 text-sm text-muted-foreground">Acesse sua conta para continuar</p>
         </div>
 
