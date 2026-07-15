@@ -36,12 +36,8 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-primary/95 p-4">
       <div className="w-full max-w-md rounded-2xl bg-card p-8 shadow-xl">
         <div className="mb-8 flex flex-col items-center text-center">
-          <svg width="52" height="52" viewBox="0 0 48 48" aria-hidden="true" className="mb-4">
-            <polygon points="24,6 44,42 4,42" fill="#54595f" />
-            <polygon points="24,16 35,36 13,36" fill="#c41e24" />
-          </svg>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight">COLUCCI IMÓVEIS</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Acesse sua conta para continuar</p>
+          <img src="/logo-colucci.png" alt="Colucci Imóveis" className="mb-5 h-20 w-auto" />
+          <p className="text-sm text-muted-foreground">Acesse sua conta para continuar</p>
         </div>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
