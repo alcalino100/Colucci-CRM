@@ -5,7 +5,7 @@ import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Input, Label, Select, Textarea } from "@/components/ui/primitives"
 import { LEAD_STATUSES, STATUS_LABEL } from "@/lib/labels"
-import { CORRETORES, ORIGENS, PROPERTIES, type Lead, type LeadStatus, type Origem } from "@/lib/mock-data"
+import { CORRETORES, ORIGENS, type Lead, type LeadStatus, type Origem } from "@/lib/mock-data"
 
 export interface LeadFormValues {
   nome: string
@@ -22,7 +22,11 @@ export interface LeadFormValues {
 const schema = z.object({
   nome: z.string().trim().min(1, "Informe o nome do lead."),
   telefone: z.string().trim().min(1, "Informe o telefone."),
-  imovelRef: z.string().min(1, "Selecione o imóvel de referência."),
+  imovelRef: z
+    .string()
+    .trim()
+    .min(2, "Informe a referência do imóvel (mín. 2 caracteres).")
+    .regex(/^[A-Za-z0-9-]+$/, "Use apenas letras, números e hífen."),
   origem: z.enum(["Instagram", "Indicação", "Tráfego Pago", "Outro"]),
   email: z.string().email("E-mail inválido.").or(z.literal("")),
 })
@@ -90,10 +94,7 @@ export function LeadForm({
         </div>
         <div className="flex flex-col gap-1">
           <Label htmlFor="imovel">Referência do imóvel *</Label>
-          <Select id="imovel" value={v.imovelRef} onChange={(e) => set("imovelRef", e.target.value)} aria-label="Imóvel">
-            <option value="">Selecione...</option>
-            {PROPERTIES.map((p) => <option key={p.id} value={p.referencia}>{p.referencia} — {p.tipo}</option>)}
-          </Select>
+          <Input id="imovel" value={v.imovelRef} onChange={(e) => set("imovelRef", e.target.value)} aria-label="Referência do imóvel" placeholder="Ex: AP-1006" />
           {err("imovelRef")}
         </div>
         <div className="flex flex-col gap-1">
