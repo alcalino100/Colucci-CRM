@@ -9,7 +9,7 @@ import { LeadForm, type LeadFormValues } from "@/components/lead-form"
 import { useLeads } from "@/lib/leads-store"
 import { useAuth } from "@/lib/auth-context"
 import { LEAD_STATUSES, STATUS_ACCENT, STATUS_LABEL, brl } from "@/lib/labels"
-import { CORRETORES, userName, type Lead, type LeadStatus } from "@/lib/mock-data"
+import { type Lead, type LeadStatus } from "@/lib/mock-data"
 
 export function KanbanBoard({
   leads,
@@ -24,7 +24,7 @@ export function KanbanBoard({
   isGestor?: boolean
   heightClass?: string
 }) {
-  const { updateLead, deleteLead, addVisit, addInteraction, notify, logChange } = useLeads()
+  const { updateLead, deleteLead, addVisit, addInteraction, notify, logChange, corretores, userName } = useLeads()
   const { user } = useAuth()
   const toast = useToast()
   const [visitLead, setVisitLead] = useState<Lead | null>(null)
@@ -186,7 +186,7 @@ export function KanbanBoard({
           <div className="flex flex-col gap-1">
             <Label htmlFor="vc">Corretor responsável</Label>
             <Select id="vc" value={vCorretor} onChange={(e) => setVCorretor(e.target.value)}>
-              {CORRETORES.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              {corretores.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </Select>
           </div>
           <div className="flex flex-col gap-1">
