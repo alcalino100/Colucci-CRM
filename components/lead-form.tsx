@@ -4,8 +4,9 @@ import { useState } from "react"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Input, Label, Select, Textarea } from "@/components/ui/primitives"
+import { useLeads } from "@/lib/leads-store"
 import { LEAD_STATUSES, STATUS_LABEL } from "@/lib/labels"
-import { CORRETORES, ORIGENS, type Lead, type LeadStatus, type Origem } from "@/lib/mock-data"
+import { ORIGENS, type Lead, type LeadStatus, type Origem } from "@/lib/mock-data"
 
 export interface LeadFormValues {
   nome: string
@@ -60,6 +61,7 @@ export function LeadForm({
     corretorId: initial?.corretorId ?? defaultCorretorId,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const { corretores } = useLeads()
   const showValor = ["negociando", "proposta enviada", "fechado"].includes(v.status)
 
   function set<K extends keyof LeadFormValues>(k: K, val: LeadFormValues[K]) {
@@ -122,7 +124,7 @@ export function LeadForm({
           <div className="flex flex-col gap-1">
             <Label htmlFor="corretor">Corretor responsável</Label>
             <Select id="corretor" value={v.corretorId} onChange={(e) => set("corretorId", e.target.value)} aria-label="Corretor responsável">
-              {CORRETORES.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              {corretores.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </Select>
           </div>
         )}
