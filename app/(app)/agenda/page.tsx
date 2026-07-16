@@ -8,7 +8,6 @@ import { useLeads } from "@/lib/leads-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, Dialog, Input, Label, Select, Textarea, useToast } from "@/components/ui/primitives"
 import { fmtDayLabel } from "@/lib/labels"
-import { CORRETORES, userName } from "@/lib/mock-data"
 
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
@@ -19,7 +18,7 @@ function ymd(y: number, m: number, d: number) {
 
 export default function AgendaPage() {
   const { user } = useAuth()
-  const { leads, visits, addVisit, updateLead, addInteraction } = useLeads()
+  const { leads, visits, addVisit, updateLead, addInteraction, corretores, userName } = useLeads()
   const toast = useToast()
   const today = new Date()
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() })
@@ -93,7 +92,7 @@ export default function AgendaPage() {
           {isGestor && (
             <Select value={filterCorretor} onChange={(e) => setFilterCorretor(e.target.value)} aria-label="Filtrar por corretor" className="w-44">
               <option value="todos">Todos os corretores</option>
-              {CORRETORES.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              {corretores.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </Select>
           )}
           <Button onClick={openNovo}><Plus className="size-4" /> Nova Visita</Button>
