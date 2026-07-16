@@ -7,12 +7,12 @@ import { useLeads } from "@/lib/leads-store"
 import { Card, CardContent, CardHeader, CardTitle, Badge, Select, Skeleton } from "@/components/ui/primitives"
 import { KanbanBoard } from "@/components/kanban-board"
 import { brl, fmtDate } from "@/lib/labels"
-import { CORRETORES, ORIGENS, userName, type Origem } from "@/lib/mock-data"
+import { ORIGENS, type Origem } from "@/lib/mock-data"
 
 const COLORS = ["#b22222", "#54595f", "#c41e24", "#a1a1aa"]
 
 export default function DashboardGestaoPage() {
-  const { leads, visits } = useLeads()
+  const { leads, visits, corretores, userName } = useLeads()
   const [loading, setLoading] = useState(true)
   const [filterCorretor, setFilterCorretor] = useState("todos")
   const [subAba, setSubAba] = useState<"andamento" | "fechadas">("andamento")
@@ -37,8 +37,8 @@ export default function DashboardGestaoPage() {
   }, [leads, visits])
 
   const leadsPorCorretor = useMemo(
-    () => CORRETORES.map((c) => ({ nome: c.nome.split(" ")[0], total: leads.filter((l) => l.corretorId === c.id).length })),
-    [leads],
+    () => corretores.map((c) => ({ nome: c.nome.split(" ")[0], total: leads.filter((l) => l.corretorId === c.id).length })),
+    [leads, corretores],
   )
   const origemData = useMemo(
     () => ORIGENS.map((o) => ({ name: o, value: leads.filter((l) => l.origem === (o as Origem)).length })).filter((d) => d.value > 0),
@@ -118,10 +118,10 @@ export default function DashboardGestaoPage() {
           <h2 className="font-display text-lg font-semibold">Kanban Geral</h2>
           <Select value={filterCorretor} onChange={(e) => setFilterCorretor(e.target.value)} aria-label="Filtrar por corretor" className="w-52">
             <option value="todos">Todos os corretores</option>
-            {CORRETORES.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            {corretores.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </Select>
         </div>
-        <KanbanBoard leads={kanbanLeads} showCorretor currentCorretorId={CORRETORES[0].id} isGestor heightClass="h-[520px]" />
+        <KanbanBoard leads={kanbanLeads} showCorretor currentCorretorId={corretores[0]?.id ?? ""} isGestor heightClass="h-[520px]" />
       </div>
 
       {/* Propostas */}
