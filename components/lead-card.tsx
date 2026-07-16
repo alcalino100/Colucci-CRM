@@ -4,8 +4,9 @@ import { useState } from "react"
 import Link from "next/link"
 import { Camera, Users, Megaphone, Circle, Phone, Clock, Building, MoreVertical, Pencil, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/primitives"
+import { useLeads } from "@/lib/leads-store"
 import { ORIGEM_VARIANT, brl, fmtDate } from "@/lib/labels"
-import { userName, type Lead, type Origem } from "@/lib/mock-data"
+import { type Lead, type Origem } from "@/lib/mock-data"
 
 const ORIGEM_ICON: Record<Origem, any> = {
   Instagram: Camera,
@@ -27,6 +28,7 @@ export function LeadCard({
   onEdit?: (lead: Lead) => void
   onDelete?: (lead: Lead) => void
 }) {
+  const { userName } = useLeads()
   const OrigemIcon = ORIGEM_ICON[lead.origem]
   const initials = userName(lead.corretorId).split(" ").map((n) => n[0]).slice(0, 2).join("")
   const [menu, setMenu] = useState(false)
