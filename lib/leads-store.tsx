@@ -18,6 +18,8 @@ interface Store {
   notifications: Notification[]
   users: User[]
   changeLogs: ChangeLog[]
+  corretores: User[]
+  userName: (id: string) => string
   addLead: (l: Omit<Lead, "id" | "criadoEm" | "atualizadoEm" | "interacoes">) => void
   updateLead: (id: string, patch: Partial<Lead>) => void
   deleteLead: (id: string) => void
@@ -238,10 +240,14 @@ export function LeadsProvider({ children }: { children: React.ReactNode }) {
     return { ok: true }
   }
 
+  // Fonte única da verdade: corretores e nomes vêm da tabela usuarios (não do mock)
+  const corretores = users.filter((u) => u.role === "corretor")
+  const userName = (id: string) => users.find((u) => u.id === id)?.nome ?? "—"
+
   return (
     <Ctx.Provider
       value={{
-        leads, visits, notifications, users, changeLogs,
+        leads, visits, notifications, users, changeLogs, corretores, userName,
         addLead, updateLead, deleteLead, addInteraction, getLead,
         addVisit, notify, markNotificationsRead, logChange, addUser, updateUser,
       }}
