@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { CalendarDays, KanbanSquare, LayoutDashboard, LogOut, Menu, KeyRound, Shield, ScrollText, X } from "lucide-react"
+import { CalendarDays, KanbanSquare, LayoutDashboard, LogOut, Menu, KeyRound, Shield, ScrollText, BarChart3, X } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import type { Role } from "@/lib/mock-data"
 import { ToastProvider } from "@/components/ui/primitives"
@@ -16,6 +16,7 @@ const NAV: { href: string; label: string; icon: any; roles: Role[] }[] = [
   { href: "/painel-corretor", label: "Kanban", icon: KanbanSquare, roles: ["corretor", "gestor"] },
   { href: "/agenda", label: "Agenda", icon: CalendarDays, roles: ["corretor", "gestor"] },
   { href: "/dashboard-gestao", label: "Dashboard", icon: LayoutDashboard, roles: ["gestor"] },
+  { href: "/meta-ads", label: "Meta Ads", icon: BarChart3, roles: ["gestor"] },
   { href: "/admin", label: "Administração", icon: Shield, roles: ["gestor"] },
   { href: "/admin/acessos", label: "Gestão de Acessos", icon: KeyRound, roles: ["gestor"] },
   { href: "/admin/logs", label: "Logs", icon: ScrollText, roles: ["gestor"] },
