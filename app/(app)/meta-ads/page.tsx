@@ -6,8 +6,8 @@ import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle, Badge, Skeleton, Select, Input } from "@/components/ui/primitives"
 import { brl } from "@/lib/labels"
 
-type Account = { id: string; account_id: string | null; name: string | null; status: string | null }
-type Campaign = { id: string; nome: string; status: string | null; account_id?: string | null }
+type Account = { id: string; conta: string | null; nome: string | null; status: string | null }
+type Campaign = { id: string; nome: string; status: string | null; conta?: string | null }
 type Adset = { id: string; campanha_id: string | null; nome: string; status: string | null }
 type Ad = { id: string; campanha_id: string | null; adset_id: string | null; nome: string; status: string | null }
 type Insight = { data: string; gasto: number; impressoes: number; cliques: number; mensagens_iniciadas: number; campanha_id?: string | null; adset_id?: string | null; ad_id?: string | null }
@@ -37,8 +37,8 @@ export default function MetaAdsPage() {
     setLoading(true)
     setMsg(null)
     const [acc, c, a, d, ic, ia, id] = await Promise.all([
-      supabase.from("meta_ad_accounts").select("id, account_id, name, status").order("name"),
-      supabase.from("meta_campanhas").select("id, nome, status, account_id").order("nome"),
+      supabase.from("meta_campanhas").select("id, conta, nome, status").order("nome"),
+      supabase.from("meta_campanhas").select("id, nome, status, conta").order("nome"),
       supabase.from("meta_adsets").select("id, campanha_id, nome, status").order("nome"),
       supabase.from("meta_ads").select("id, campanha_id, adset_id, nome, status").order("nome"),
       supabase.from("meta_insights_campaign_daily").select("campanha_id, data, gasto, impressoes, cliques, mensagens_iniciadas").gte("data", since).lte("data", until),
@@ -54,7 +54,7 @@ export default function MetaAdsPage() {
     setAIns((ia.data as Insight[]) || [])
     setDIns((id.data as Insight[]) || [])
 
-    if (!accountId && acc.data?.[0]?.account_id) setAccountId(acc.data[0].account_id || "")
+    if (!accountId && acc.data?.[0]?.conta) setAccountId(acc.data[0].conta || "")
     if (!(acc.data?.length || c.data?.length || a.data?.length || d.data?.length || ic.data?.length || ia.data?.length || id.data?.length)) {
       setMsg("Sem dados para o período/conta selecionados. Tente ampliar a data ou escolher outra conta.")
     }
@@ -70,7 +70,7 @@ export default function MetaAdsPage() {
   const adsByAdset = useMemo(() => groupBy(ads, x => x.adset_id || ""), [ads])
 
   const filteredCampaigns = useMemo(() => {
-    const rows = campaigns.filter(c => !accountId || !c.account_id || c.account_id === accountId)
+    const rows = campaigns.filter(c => !accountId || c.conta === accountId)
     return rows.map(c => {
       const rows = cMap[c.id] || []
       return { ...c, gasto: sum(rows, x => x.gasto), mensagens: sum(rows, x => x.mensagens_iniciadas), cliques: sum(rows, x => x.cliques), impressoes: sum(rows, x => x.impressoes) }
@@ -104,7 +104,7 @@ export default function MetaAdsPage() {
     </div>
 
     <Card><CardContent className="grid gap-4 p-5 xl:grid-cols-5">
-      <Field label="Conta"><Select value={accountId} onValueChange={setAccountId}><option value="">Todas</option>{accounts.map(a => <option key={a.id} value={a.account_id || ""}>{a.name || a.account_id || a.id}</option>)}</Select></Field>
+      <Field label="Conta"><Select value={accountId} onValueChange={setAccountId}><option value="">Todas</option>{accounts.map(a => <option key={a.id} value={a.conta || ""}>{a.nome || a.conta || a.id}</option>)}</Select></Field>
       <Field label="De"><Input type="date" value={since} onChange={e => setSince(e.target.value)} /></Field>
       <Field label="Até"><Input type="date" value={until} onChange={e => setUntil(e.target.value)} /></Field>
       <Field label="Ordenar"><Select value={sortBy} onValueChange={v => setSortBy(v as any)}><option value="gasto">Gasto</option><option value="mensagens">Resultados</option><option value="cliques">Cliques</option></Select></Field>
