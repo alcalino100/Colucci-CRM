@@ -31,9 +31,11 @@ export default function MetaAdsPage() {
   const [dIns, setDIns] = useState<Insight[]>([])
   const [openCampaigns, setOpenCampaigns] = useState<Record<string, boolean>>({})
   const [openAdsets, setOpenAdsets] = useState<Record<string, boolean>>({})
+  const [msg, setMsg] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
+    setMsg(null)
     const [acc, c, a, d, ic, ia, id] = await Promise.all([
       supabase.from("meta_ad_accounts").select("id, account_id, name, status").order("name"),
       supabase.from("meta_campanhas").select("id, nome, status, account_id").order("nome"),
@@ -43,6 +45,7 @@ export default function MetaAdsPage() {
       supabase.from("meta_insights_adset_daily").select("adset_id, campanha_id, data, gasto, impressoes, cliques, mensagens_iniciadas").gte("data", since).lte("data", until),
       supabase.from("meta_insights_ad_daily").select("ad_id, adset_id, campanha_id, data, gasto, impressoes, cliques, mensagens_iniciadas").gte("data", since).lte("data", until),
     ])
+
     setAccounts((acc.data as Account[]) || [])
     setCampaigns((c.data as Campaign[]) || [])
     setAdsets((a.data as Adset[]) || [])
@@ -50,7 +53,11 @@ export default function MetaAdsPage() {
     setCIns((ic.data as Insight[]) || [])
     setAIns((ia.data as Insight[]) || [])
     setDIns((id.data as Insight[]) || [])
+
     if (!accountId && acc.data?.[0]?.account_id) setAccountId(acc.data[0].account_id || "")
+    if (!(acc.data?.length || c.data?.length || a.data?.length || d.data?.length || ic.data?.length || ia.data?.length || id.data?.length)) {
+      setMsg("Sem dados para o período/conta selecionados. Tente ampliar a data ou escolher outra conta.")
+    }
     setLoading(false)
   }
 
@@ -63,7 +70,7 @@ export default function MetaAdsPage() {
   const adsByAdset = useMemo(() => groupBy(ads, x => x.adset_id || ""), [ads])
 
   const filteredCampaigns = useMemo(() => {
-    const rows = campaigns.filter(c => !accountId || c.account_id === accountId)
+    const rows = campaigns.filter(c => !accountId || !c.account_id || c.account_id === accountId)
     return rows.map(c => {
       const rows = cMap[c.id] || []
       return { ...c, gasto: sum(rows, x => x.gasto), mensagens: sum(rows, x => x.mensagens_iniciadas), cliques: sum(rows, x => x.cliques), impressoes: sum(rows, x => x.impressoes) }
@@ -73,15 +80,18 @@ export default function MetaAdsPage() {
   function resCampaign(id: string) { const r = cMap[id] || []; return totals(r) }
   function resAdset(id: string) { const r = aMap[id] || []; return totals(r) }
   function resAd(id: string) { const r = dMap[id] || []; return totals(r) }
-
   const total = totals(cIns)
 
   async function sync() {
+    if (!accountId) { setMsg("Escolha uma conta antes de sincronizar."); return }
     setSyncing(true)
+    setMsg(null)
     const secret = process.env.NEXT_PUBLIC_CRON_SECRET || ""
     const url = `/api/meta-sync?secret=${encodeURIComponent(secret)}&account_id=${encodeURIComponent(accountId)}&since=${since}&until=${until}&level=campaign`
     const r = await fetch(url, { cache: "no-store" })
-    if (r.ok) await load()
+    const j = await r.json().catch(() => null)
+    if (!r.ok) setMsg(j?.error || "Falha na sincronização")
+    await load()
     setSyncing(false)
   }
 
@@ -101,6 +111,8 @@ export default function MetaAdsPage() {
       <div className="flex items-end"><button className="w-full rounded-lg border px-3 py-2 text-sm hover:bg-muted" onClick={load}>Aplicar</button></div>
     </CardContent></Card>
 
+    {msg && <Card><CardContent className="p-4 text-sm text-muted-foreground">{msg}</CardContent></Card>}
+
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <Kpi icon={CircleDollarSign} label="Gasto" value={brl(total.gasto)} />
       <Kpi icon={MessageCircleMore} label="Resultados" value={String(total.mensagens)} accent />
@@ -109,7 +121,7 @@ export default function MetaAdsPage() {
     </div>
 
     <Card><CardHeader><CardTitle className="text-base">Campanhas</CardTitle></CardHeader><CardContent className="space-y-4">
-      {filteredCampaigns.map(c => {
+      {filteredCampaigns.length === 0 ? <p className="text-sm text-muted-foreground">Sem campanhas para essa conta/período.</p> : filteredCampaigns.map(c => {
         const r = resCampaign(c.id)
         const childAdsets = (adsetsByCampaign[c.id] || []).sort((x:any,y:any)=> (resAdset(y.id)[sortBy]||0)-(resAdset(x.id)[sortBy]||0))
         const open = !!openCampaigns[c.id]
@@ -120,7 +132,7 @@ export default function MetaAdsPage() {
             const rr = resAdset(a.id)
             const childAds = (adsByAdset[a.id] || []).sort((x:any,y:any)=> (resAd(y.id)[sortBy]||0)-(resAd(x.id)[sortBy]||0))
             const o = !!openAdsets[a.id]
-            return <div key={a.id} className="rounded-xl border bg-background p-4 space-y-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div className="space-y-2"><div className="flex items-center gap-2"><Layers3 className="h-4 w-4 text-muted-foreground" /><h3 className="font-medium">{a.nome}</h3></div><div className="flex flex-wrap gap-2"><Badge>{label(a.status)}</Badge><Badge variant="secondary">{childAds.length} anúncios</Badge></div></div><button className="rounded-lg border px-3 py-2 text-sm hover:bg-muted" onClick={() => setOpenAdsets(p => ({...p,[a.id]:!p[a.id]}))}>{o ? "Ocultar" : "Ver anúncios"}</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Mini label="Gasto" value={brl(rr.gasto)} /><Mini label="Impressões" value={String(rr.impressoes)} /><Mini label="Cliques" value={String(rr.cliques)} /><Mini label="Resultados" value={String(rr.mensagens)} /></div>{o && <div className="space-y-3 border-t pt-4">{childAds.map(ad => { const ra = resAd(ad.id); return <div key={ad.id} className="rounded-xl border bg-muted/30 p-4"><div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between"><div className="space-y-2"><h4 className="font-medium">{ad.nome}</h4><Badge>{label(ad.status)}</Badge></div><div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4 w-full md:w-auto md:min-w-[520px]"><Mini label="Gasto" value={brl(ra.gasto)} /><Mini label="Impressões" value={String(ra.impressoes)} /><Mini label="Cliques" value={String(ra.cliques)} /><Mini label="Resultados" value={String(ra.mensagens)} /></div></div></div> })}</div>}</div>
+            return <div key={a.id} className="rounded-xl border bg-background p-4 space-y-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div className="space-y-2"><div className="flex items-center gap-2"><Layers3 className="h-4 w-4 text-muted-foreground" /><h3 className="font-medium">{a.nome}</h3></div><div className="flex flex-wrap gap-2"><Badge>{label(a.status)}</Badge><Badge variant="secondary">{childAds.length} anúncios</Badge></div></div><button className="rounded-lg border px-3 py-2 text-sm hover:bg-muted" onClick={() => setOpenAdsets(p => ({...p,[a.id]:!p[a.id]}))}>{o ? "Ocultar" : "Ver anúncios"}</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Mini label="Gasto" value={brl(rr.gasto)} /><Mini label="Impressões" value={String(rr.impressoes)} /><Mini label="Cliques" value={String(rr.cliques)} /><Mini label="Resultados" value={String(rr.mensagens)} /></div>{o && <div className="space-y-3 border-t pt-4">{childAds.length ? childAds.map(ad => { const ra = resAd(ad.id); return <div key={ad.id} className="rounded-xl border bg-muted/30 p-4"><div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between"><div className="space-y-2"><h4 className="font-medium">{ad.nome}</h4><Badge>{label(ad.status)}</Badge></div><div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4 w-full md:w-auto md:min-w-[520px]"><Mini label="Gasto" value={brl(ra.gasto)} /><Mini label="Impressões" value={String(ra.impressoes)} /><Mini label="Cliques" value={String(ra.cliques)} /><Mini label="Resultados" value={String(ra.mensagens)} /></div></div></div> }) : <p className="text-sm text-muted-foreground">Sem anúncios para este conjunto.</p>}</div>}</div>
           }) : <p className="text-sm text-muted-foreground">Sem conjuntos para esta campanha.</p>}</div>}
         </div>
       })}
