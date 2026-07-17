@@ -7,10 +7,7 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 function db() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 }
 
 async function metaGetAll(url: string): Promise<any[]> {
@@ -43,8 +40,6 @@ export async function GET(req: Request) {
   try {
     const token = process.env.META_ACCESS_TOKEN!
     const versao = process.env.META_API_VERSION || "v25.0"
-
-    // conta agora vem da querystring, com fallback para a variável de ambiente
     let conta = url.searchParams.get("account_id") || process.env.META_AD_ACCOUNT_ID!
     if (!conta.startsWith("act_")) conta = `act_${conta}`
 
@@ -55,68 +50,76 @@ export async function GET(req: Request) {
       : `date_preset=last_30d`
 
     const base = `https://graph.facebook.com/${versao}`
-
-    const campanhas = await metaGetAll(
-      `${base}/${conta}/campaigns?fields=id,name,effective_status&limit=200&access_token=${token}`
-    )
-
-    const insights = await metaGetAll(
-      `${base}/${conta}/insights?level=campaign&fields=campaign_id,campaign_name,spend,impressions,clicks&time_increment=1&${datePart}&limit=500&access_token=${token}`
-    )
-
     const supabase = db()
 
+    // ---------- CAMPANHAS ----------
+    const campanhas = await metaGetAll(`${base}/${conta}/campaigns?fields=id,name,effective_status&limit=200&access_token=${token}`)
     const { data: corretores } = await supabase.from("usuarios").select("id, nome").eq("role", "corretor")
     const mapaCorretor = new Map<string, string>()
     for (const c of corretores ?? []) {
       const primeiro = (c.nome || "").split(" ")[0].toUpperCase()
       if (primeiro) mapaCorretor.set(primeiro, c.id)
     }
-    const achaCorretor = (nomeCampanha: string): string | null => {
-      const p = prefixoCorretor(nomeCampanha)
-      return mapaCorretor.get(p) ?? null
-    }
+    const achaCorretor = (nome: string) => mapaCorretor.get(prefixoCorretor(nome)) ?? null
 
     const linhasCamp = campanhas.map((c) => ({
-      id: c.id,
-      nome: c.name ?? "",
-      status: c.effective_status ?? null,
-      conta,
-      corretor_id: achaCorretor(c.name ?? ""),
+      id: c.id, nome: c.name ?? "", status: c.effective_status ?? null, conta,
+      corretor_id: achaCorretor(c.name ?? ""), atualizado_em: new Date().toISOString(),
+    }))
+    if (linhasCamp.length) await supabase.from("meta_campanhas").upsert(linhasCamp, { onConflict: "id" })
+
+    // ---------- CONJUNTOS (adsets) ----------
+    const adsets = await metaGetAll(`${base}/${conta}/adsets?fields=id,name,effective_status,campaign_id&limit=500&access_token=${token}`)
+    const linhasAdsets = adsets.map((a) => ({
+      id: a.id, campanha_id: a.campaign_id, nome: a.name ?? "", status: a.effective_status ?? null,
       atualizado_em: new Date().toISOString(),
     }))
-    if (linhasCamp.length)
-      await supabase.from("meta_campanhas").upsert(linhasCamp, { onConflict: "id" })
+    if (linhasAdsets.length) await supabase.from("meta_adsets").upsert(linhasAdsets, { onConflict: "id" })
 
-    const idsConhecidos = new Set(linhasCamp.map((c) => c.id))
-    const faltantes = new Map<string, string>()
-    for (const r of insights) {
-      if (!idsConhecidos.has(r.campaign_id) && !faltantes.has(r.campaign_id))
-        faltantes.set(r.campaign_id, r.campaign_name ?? "")
-    }
-    if (faltantes.size) {
-      const extra = [...faltantes.entries()].map(([id, nome]) => ({
-        id, nome, status: null, conta, corretor_id: achaCorretor(nome),
-        atualizado_em: new Date().toISOString(),
-      }))
-      await supabase.from("meta_campanhas").upsert(extra, { onConflict: "id" })
-    }
-
-    const linhasGasto = insights.map((r: any) => ({
-      campanha_id: r.campaign_id,
-      data: r.date_start,
-      gasto: Number(r.spend ?? 0),
-      impressoes: Number(r.impressions ?? 0),
-      cliques: Number(r.clicks ?? 0),
+    // ---------- ANÚNCIOS (ads) ----------
+    const ads = await metaGetAll(`${base}/${conta}/ads?fields=id,name,effective_status,campaign_id,adset_id&limit=500&access_token=${token}`)
+    const linhasAds = ads.map((a) => ({
+      id: a.id, campanha_id: a.campaign_id, adset_id: a.adset_id, nome: a.name ?? "", status: a.effective_status ?? null,
+      atualizado_em: new Date().toISOString(),
     }))
-    if (linhasGasto.length)
-      await supabase.from("meta_gastos_diarios").upsert(linhasGasto, { onConflict: "campanha_id,data" })
+    if (linhasAds.length) await supabase.from("meta_ads").upsert(linhasAds, { onConflict: "id" })
+
+    // ---------- INSIGHTS POR CAMPANHA ----------
+    const insightsCampanha = await metaGetAll(
+      `${base}/${conta}/insights?level=campaign&fields=campaign_id,spend,impressions,clicks,actions&time_increment=1&${datePart}&limit=500&access_token=${token}`
+    )
+    const linhasGastoCamp = insightsCampanha.map((r: any) => ({
+      campanha_id: r.campaign_id, data: r.date_start,
+      gasto: Number(r.spend ?? 0), impressoes: Number(r.impressions ?? 0), cliques: Number(r.clicks ?? 0),
+      mensagens_iniciadas: Number((r.actions || []).find((a: any) => a.action_type === "onsite_conversion.messaging_conversation_started_7d")?.value ?? 0),
+    }))
+    if (linhasGastoCamp.length) await supabase.from("meta_insights_campaign_daily").upsert(linhasGastoCamp, { onConflict: "campanha_id,data" })
+
+    // ---------- INSIGHTS POR CONJUNTO ----------
+    const insightsAdset = await metaGetAll(
+      `${base}/${conta}/insights?level=adset&fields=adset_id,spend,impressions,clicks,actions&time_increment=1&${datePart}&limit=500&access_token=${token}`
+    )
+    const linhasGastoAdset = insightsAdset.map((r: any) => ({
+      adset_id: r.adset_id, data: r.date_start,
+      gasto: Number(r.spend ?? 0), impressoes: Number(r.impressions ?? 0), cliques: Number(r.clicks ?? 0),
+      mensagens_iniciadas: Number((r.actions || []).find((a: any) => a.action_type === "onsite_conversion.messaging_conversation_started_7d")?.value ?? 0),
+    }))
+    if (linhasGastoAdset.length) await supabase.from("meta_insights_adset_daily").upsert(linhasGastoAdset, { onConflict: "adset_id,data" })
+
+    // ---------- INSIGHTS POR ANÚNCIO ----------
+    const insightsAd = await metaGetAll(
+      `${base}/${conta}/insights?level=ad&fields=ad_id,spend,impressions,clicks,actions&time_increment=1&${datePart}&limit=500&access_token=${token}`
+    )
+    const linhasGastoAd = insightsAd.map((r: any) => ({
+      ad_id: r.ad_id, data: r.date_start,
+      gasto: Number(r.spend ?? 0), impressoes: Number(r.impressions ?? 0), cliques: Number(r.clicks ?? 0),
+      mensagens_iniciadas: Number((r.actions || []).find((a: any) => a.action_type === "onsite_conversion.messaging_conversation_started_7d")?.value ?? 0),
+    }))
+    if (linhasGastoAd.length) await supabase.from("meta_insights_ad_daily").upsert(linhasGastoAd, { onConflict: "ad_id,data" })
 
     return NextResponse.json({
-      ok: true,
-      conta,
-      campanhas: linhasCamp.length,
-      diasDeGasto: linhasGasto.length,
+      ok: true, conta,
+      campanhas: linhasCamp.length, conjuntos: linhasAdsets.length, anuncios: linhasAds.length,
       quando: new Date().toISOString(),
     })
   } catch (e: any) {
