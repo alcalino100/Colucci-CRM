@@ -1,342 +1,153 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CircleDollarSign, Layers3, Megaphone, MessageCircleMore, MousePointerClick } from "lucide-react"
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts"
+import { Megaphone, CircleDollarSign, Activity, Users } from "lucide-react"
 import { supabase } from "@/lib/supabase/client"
+import { useLeads } from "@/lib/leads-store"
 import { Card, CardContent, CardHeader, CardTitle, Badge, Skeleton } from "@/components/ui/primitives"
 import { brl } from "@/lib/labels"
 
-type Campanha = { id: string; nome: string; status: string | null }
-type Adset = { id: string; campanha_id: string | null; nome: string; status: string | null }
-type Ad = { id: string; campanha_id: string | null; adset_id: string | null; nome: string; status: string | null }
-
-type InsightCampaign = {
-  campanha_id: string
-  data: string
-  gasto: number
-  impressoes: number
-  cliques: number
-  mensagens_iniciadas: number
-}
-
-type InsightAdset = {
-  adset_id: string
-  campanha_id: string | null
-  data: string
-  gasto: number
-  impressoes: number
-  cliques: number
-  mensagens_iniciadas: number
-}
-
-type InsightAd = {
-  ad_id: string
-  adset_id: string | null
-  campanha_id: string | null
-  data: string
-  gasto: number
-  impressoes: number
-  cliques: number
-  mensagens_iniciadas: number
-}
-
-function soma<T>(arr: T[], pick: (item: T) => number) {
-  return arr.reduce((s, item) => s + Number(pick(item) || 0), 0)
-}
-
-function statusLabel(status: string | null) {
-  if (!status) return "—"
-  const s = status.toUpperCase()
-  if (s === "ACTIVE") return "Ativa"
-  if (s === "PAUSED") return "Pausada"
-  if (s === "ARCHIVED") return "Arquivada"
-  return s
-}
+type Campanha = { id: string; nome: string; status: string | null; corretor_id: string | null }
+type Gasto = { campanha_id: string; data: string; gasto: number; impressoes: number; cliques: number }
 
 export default function MetaAdsPage() {
+  const { userName } = useLeads()
   const [campanhas, setCampanhas] = useState<Campanha[]>([])
-  const [adsets, setAdsets] = useState<Adset[]>([])
-  const [ads, setAds] = useState<Ad[]>([])
-  const [insCampaign, setInsCampaign] = useState<InsightCampaign[]>([])
-  const [insAdset, setInsAdset] = useState<InsightAdset[]>([])
-  const [insAd, setInsAd] = useState<InsightAd[]>([])
+  const [gastos, setGastos] = useState<Gasto[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedCampaigns, setExpandedCampaigns] = useState<Record<string, boolean>>({})
-  const [expandedAdsets, setExpandedAdsets] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     ;(async () => {
-      const [c, a, d, ic, ia, idd] = await Promise.all([
-        supabase.from("meta_campanhas").select("id, nome, status").order("nome"),
-        supabase.from("meta_adsets").select("id, campanha_id, nome, status").order("nome"),
-        supabase.from("meta_ads").select("id, campanha_id, adset_id, nome, status").order("nome"),
-        supabase.from("meta_insights_campaign_daily").select("campanha_id, data, gasto, impressoes, cliques, mensagens_iniciadas").order("data"),
-        supabase.from("meta_insights_adset_daily").select("adset_id, campanha_id, data, gasto, impressoes, cliques, mensagens_iniciadas").order("data"),
-        supabase.from("meta_insights_ad_daily").select("ad_id, adset_id, campanha_id, data, gasto, impressoes, cliques, mensagens_iniciadas").order("data"),
+      const [c, g] = await Promise.all([
+        supabase.from("meta_campanhas").select("id, nome, status, corretor_id"),
+        supabase.from("meta_gastos_diarios").select("campanha_id, data, gasto, impressoes, cliques").order("data"),
       ])
-
       if (c.data) setCampanhas(c.data as Campanha[])
-      if (a.data) setAdsets(a.data as Adset[])
-      if (d.data) setAds(d.data as Ad[])
-      if (ic.data) setInsCampaign(ic.data as InsightCampaign[])
-      if (ia.data) setInsAdset(ia.data as InsightAdset[])
-      if (idd.data) setInsAd(idd.data as InsightAd[])
+      if (g.data) setGastos(g.data as Gasto[])
       setLoading(false)
     })()
   }, [])
 
+  const corretorDaCampanha = useMemo(() => {
+    const m = new Map<string, string | null>()
+    campanhas.forEach((c) => m.set(c.id, c.corretor_id))
+    return m
+  }, [campanhas])
+
   const kpis = useMemo(() => {
-    return {
-      gasto: soma(insCampaign, (i) => i.gasto),
-      mensagens: soma(insCampaign, (i) => i.mensagens_iniciadas),
-      cliques: soma(insCampaign, (i) => i.cliques),
-      campanhas: campanhas.length,
-      adsets: adsets.length,
-      ads: ads.length,
-    }
-  }, [campanhas, adsets, ads, insCampaign])
-
-  const insCampaignMap = useMemo(() => {
-    const m = new Map<string, InsightCampaign[]>()
-    insCampaign.forEach((row) => {
-      const list = m.get(row.campanha_id) ?? []
-      list.push(row)
-      m.set(row.campanha_id, list)
-    })
-    return m
-  }, [insCampaign])
-
-  const insAdsetMap = useMemo(() => {
-    const m = new Map<string, InsightAdset[]>()
-    insAdset.forEach((row) => {
-      const list = m.get(row.adset_id) ?? []
-      list.push(row)
-      m.set(row.adset_id, list)
-    })
-    return m
-  }, [insAdset])
-
-  const insAdMap = useMemo(() => {
-    const m = new Map<string, InsightAd[]>()
-    insAd.forEach((row) => {
-      const list = m.get(row.ad_id) ?? []
-      list.push(row)
-      m.set(row.ad_id, list)
-    })
-    return m
-  }, [insAd])
-
-  const adsetsByCampaign = useMemo(() => {
-    const m = new Map<string, Adset[]>()
-    adsets.forEach((a) => {
-      if (!a.campanha_id) return
-      const list = m.get(a.campanha_id) ?? []
-      list.push(a)
-      m.set(a.campanha_id, list)
-    })
-    return m
-  }, [adsets])
-
-  const adsByAdset = useMemo(() => {
-    const m = new Map<string, Ad[]>()
-    ads.forEach((a) => {
-      if (!a.adset_id) return
-      const list = m.get(a.adset_id) ?? []
-      list.push(a)
-      m.set(a.adset_id, list)
-    })
-    return m
-  }, [ads])
+    const total = gastos.reduce((s, g) => s + Number(g.gasto), 0)
+    const ativas = campanhas.filter((c) => (c.status ?? "").toUpperCase() === "ACTIVE").length
+    const cliques = gastos.reduce((s, g) => s + Number(g.cliques), 0)
+    return { total, ativas, cliques, nCamp: campanhas.length }
+  }, [gastos, campanhas])
 
   const porDia = useMemo(() => {
     const m = new Map<string, number>()
-    insCampaign.forEach((row) => {
-      m.set(row.data, (m.get(row.data) ?? 0) + Number(row.gasto || 0))
+    gastos.forEach((g) => m.set(g.data, (m.get(g.data) ?? 0) + Number(g.gasto)))
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([data, gasto]) => ({ dia: data.slice(5), gasto: Number(gasto.toFixed(2)) }))
+  }, [gastos])
+
+  const porCorretor = useMemo(() => {
+    const m = new Map<string, number>()
+    gastos.forEach((g) => {
+      const cid = corretorDaCampanha.get(g.campanha_id) ?? "sem"
+      m.set(cid, (m.get(cid) ?? 0) + Number(g.gasto))
     })
     return [...m.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([data, gasto]) => ({ dia: data.slice(5), gasto }))
-  }, [insCampaign])
+      .map(([cid, gasto]) => ({ nome: cid === "sem" ? "Sem corretor" : userName(cid), gasto }))
+      .sort((a, b) => b.gasto - a.gasto)
+  }, [gastos, corretorDaCampanha, userName])
 
-  function resumoCampanha(id: string) {
-    const rows = insCampaignMap.get(id) ?? []
-    return {
-      gasto: soma(rows, (r) => r.gasto),
-      impressoes: soma(rows, (r) => r.impressoes),
-      cliques: soma(rows, (r) => r.cliques),
-      mensagens: soma(rows, (r) => r.mensagens_iniciadas),
-    }
-  }
-
-  function resumoAdset(id: string) {
-    const rows = insAdsetMap.get(id) ?? []
-    return {
-      gasto: soma(rows, (r) => r.gasto),
-      impressoes: soma(rows, (r) => r.impressoes),
-      cliques: soma(rows, (r) => r.cliques),
-      mensagens: soma(rows, (r) => r.mensagens_iniciadas),
-    }
-  }
-
-  function resumoAd(id: string) {
-    const rows = insAdMap.get(id) ?? []
-    return {
-      gasto: soma(rows, (r) => r.gasto),
-      impressoes: soma(rows, (r) => r.impressoes),
-      cliques: soma(rows, (r) => r.cliques),
-      mensagens: soma(rows, (r) => r.mensagens_iniciadas),
-    }
-  }
+  const gastoCampanha = useMemo(() => {
+    const m = new Map<string, number>()
+    gastos.forEach((g) => m.set(g.campanha_id, (m.get(g.campanha_id) ?? 0) + Number(g.gasto)))
+    return m
+  }, [gastos])
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Meta Ads</h1>
-          <p className="text-muted-foreground">Campanhas, conjuntos e anúncios com métricas de mensagens.</p>
+      <div className="flex flex-col gap-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 w-full" />)}
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-2xl" />
-          ))}
-        </div>
-        <Skeleton className="h-96 rounded-2xl" />
+        <Skeleton className="h-72 w-full" />
       </div>
     )
   }
 
-  const vazio = campanhas.length === 0 && adsets.length === 0 && ads.length === 0
+  const vazio = campanhas.length === 0 && gastos.length === 0
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Meta Ads</h1>
-        <p className="text-muted-foreground">Visualização de campanhas, conjuntos e anúncios com gastos, cliques e mensagens iniciadas.</p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Kpi icon={CircleDollarSign} label="Gasto total" value={brl(kpis.gasto)} />
-        <Kpi icon={MessageCircleMore} label="Mensagens iniciadas" value={String(kpis.mensagens)} accent />
-        <Kpi icon={MousePointerClick} label="Cliques" value={String(kpis.cliques)} />
-        <Kpi icon={Megaphone} label="Estrutura" value={`${kpis.campanhas} campanhas · ${kpis.adsets} conjuntos · ${kpis.ads} anúncios`} />
+        <h1 className="font-display text-2xl font-bold">Meta Ads</h1>
+        <p className="text-sm text-muted-foreground">Campanhas, gastos e desempenho por corretor.</p>
       </div>
 
       {vazio ? (
-        <Card>
-          <CardContent className="py-10 text-sm text-muted-foreground">
-            Ainda não há dados do Meta sincronizados. Rode a rota manualmente para popular as tabelas novas.
-          </CardContent>
-        </Card>
+        <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
+          Ainda nÃ£o hÃ¡ dados. A sincronizaÃ§Ã£o com o Meta roda diariamente â€” ou dispare o teste manual da rotina.
+        </CardContent></Card>
       ) : (
-        <div className="space-y-4">
-          {campanhas.map((campanha) => {
-            const rCamp = resumoCampanha(campanha.id)
-            const filhosAdsets = adsetsByCampaign.get(campanha.id) ?? []
-            const isExpanded = !!expandedCampaigns[campanha.id]
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi icon={CircleDollarSign} label="Gasto (30 dias)" value={brl(kpis.total)} accent />
+            <Kpi icon={Activity} label="Campanhas ativas" value={String(kpis.ativas)} />
+            <Kpi icon={Megaphone} label="Total de campanhas" value={String(kpis.nCamp)} />
+            <Kpi icon={Users} label="Cliques (30 dias)" value={String(kpis.cliques)} />
+          </div>
 
-            return (
-              <Card key={campanha.id}>
-                <CardHeader>
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-2">
-                      <CardTitle className="text-base">{campanha.nome}</CardTitle>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge>{statusLabel(campanha.status)}</Badge>
-                        <Badge variant="secondary">{filhosAdsets.length} conjuntos</Badge>
-                      </div>
-                    </div>
-                    <button
-                      className="rounded-lg border px-3 py-2 text-sm hover:bg-muted"
-                      onClick={() => setExpandedCampaigns((prev) => ({ ...prev, [campanha.id]: !prev[campanha.id] }))}
-                    >
-                      {isExpanded ? "Ocultar conjuntos" : "Ver conjuntos"}
-                    </button>
+          <Card>
+            <CardHeader><CardTitle>Gasto por dia</CardTitle></CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={porDia}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" vertical={false} />
+                  <XAxis dataKey="dia" tick={{ fontSize: 11 }} stroke="#71717a" tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} stroke="#71717a" tickLine={false} axisLine={false} />
+                  <Tooltip formatter={(v: any) => brl(Number(v))} />
+                  <Bar dataKey="gasto" fill="#b22222" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle>Gasto por corretor</CardTitle></CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {porCorretor.map((c) => (
+                  <div key={c.nome} className="flex items-center justify-between rounded-lg border border-border p-3">
+                    <span className="font-medium">{c.nome}</span>
+                    <span className="font-display font-bold text-primary">{brl(c.gasto)}</span>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <MiniStat label="Gasto" value={brl(rCamp.gasto)} />
-                    <MiniStat label="Impressões" value={String(rCamp.impressoes)} />
-                    <MiniStat label="Cliques" value={String(rCamp.cliques)} />
-                    <MiniStat label="Mensagens" value={String(rCamp.mensagens)} />
-                  </div>
+                ))}
+              </CardContent>
+            </Card>
 
-                  {isExpanded && (
-                    <div className="space-y-3 border-t pt-4">
-                      {filhosAdsets.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Nenhum conjunto encontrado para esta campanha.</p>
-                      ) : (
-                        filhosAdsets.map((adset) => {
-                          const rAdset = resumoAdset(adset.id)
-                          const filhosAds = adsByAdset.get(adset.id) ?? []
-                          const isAdsetExpanded = !!expandedAdsets[adset.id]
-
-                          return (
-                            <div key={adset.id} className="rounded-xl border bg-card p-4 space-y-4">
-                              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <Layers3 className="h-4 w-4 text-muted-foreground" />
-                                    <h3 className="font-medium">{adset.nome}</h3>
-                                  </div>
-                                  <div className="flex flex-wrap gap-2">
-                                    <Badge>{statusLabel(adset.status)}</Badge>
-                                    <Badge variant="secondary">{filhosAds.length} anúncios</Badge>
-                                  </div>
-                                </div>
-                                <button
-                                  className="rounded-lg border px-3 py-2 text-sm hover:bg-muted"
-                                  onClick={() => setExpandedAdsets((prev) => ({ ...prev, [adset.id]: !prev[adset.id] }))}
-                                >
-                                  {isAdsetExpanded ? "Ocultar anúncios" : "Ver anúncios"}
-                                </button>
-                              </div>
-
-                              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                <MiniStat label="Gasto" value={brl(rAdset.gasto)} />
-                                <MiniStat label="Impressões" value={String(rAdset.impressoes)} />
-                                <MiniStat label="Cliques" value={String(rAdset.cliques)} />
-                                <MiniStat label="Mensagens" value={String(rAdset.mensagens)} />
-                              </div>
-
-                              {isAdsetExpanded && (
-                                <div className="space-y-3 border-t pt-4">
-                                  {filhosAds.length === 0 ? (
-                                    <p className="text-sm text-muted-foreground">Nenhum anúncio encontrado para este conjunto.</p>
-                                  ) : (
-                                    filhosAds.map((ad) => {
-                                      const rAd = resumoAd(ad.id)
-                                      return (
-                                        <div key={ad.id} className="rounded-xl border bg-background p-4">
-                                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                                            <div className="space-y-2">
-                                              <h4 className="font-medium">{ad.nome}</h4>
-                                              <Badge>{statusLabel(ad.status)}</Badge>
-                                            </div>
-                                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4 w-full md:w-auto md:min-w-[520px]">
-                                              <MiniStat label="Gasto" value={brl(rAd.gasto)} />
-                                              <MiniStat label="Impressões" value={String(rAd.impressoes)} />
-                                              <MiniStat label="Cliques" value={String(rAd.cliques)} />
-                                              <MiniStat label="Mensagens" value={String(rAd.mensagens)} />
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )
-                                    })
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })
-                      )}
+            <Card>
+              <CardHeader><CardTitle>Campanhas</CardTitle></CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {campanhas.map((c) => (
+                  <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{c.nome}</p>
+                      <p className="text-xs text-muted-foreground">{c.corretor_id ? userName(c.corretor_id) : "Sem corretor"}</p>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant={(c.status ?? "").toUpperCase() === "ACTIVE" ? "green" : "accent"}>
+                        {(c.status ?? "â€”").toUpperCase() === "ACTIVE" ? "Ativa" : (c.status ?? "â€”")}
+                      </Badge>
+                      <span className="font-display font-bold text-primary">{brl(gastoCampanha.get(c.id) ?? 0)}</span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
     </div>
   )
@@ -345,26 +156,15 @@ export default function MetaAdsPage() {
 function Kpi({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent?: boolean }) {
   return (
     <Card>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">{label}</p>
-            <p className={`text-2xl font-semibold tracking-tight ${accent ? "text-primary" : ""}`}>{value}</p>
-          </div>
-          <div className="rounded-xl border bg-muted p-2">
-            <Icon className="h-5 w-5 text-muted-foreground" />
-          </div>
+      <CardContent className="flex items-center gap-4 pt-5">
+        <div className={`flex size-11 items-center justify-center rounded-lg ${accent ? "bg-accent/15 text-accent" : "bg-primary/10 text-primary"}`}>
+          <Icon className="size-5" />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="font-display text-xl font-bold">{value}</p>
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border bg-muted/40 p-3">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-semibold">{value}</p>
-    </div>
   )
 }
