@@ -7,10 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, Badge, Skeleton, Select, Inpu
 import { brl } from "@/lib/labels"
 
 type Account = { id: string; conta: string | null; nome: string | null; status: string | null }
-type Campaign = { id: string; nome: string; status: string | null; conta?: string | null }
-type Adset = { id: string; campanha_id: string | null; nome: string; status: string | null }
-type Ad = { id: string; campanha_id: string | null; adset_id: string | null; nome: string; status: string | null }
-type Insight = { data: string; gasto: number; impressoes: number; cliques: number; mensagens_iniciadas: number; campanha_id?: string | null; adset_id?: string | null; ad_id?: string | null }
+type Campaign = { campanha_id: string; conta: string | null; nome: string; status: string | null; gasto: number; impressoes: number; cliques: number; mensagens: number }
+type Adset = { adset_id: string; campanha_id: string | null; nome: string; status: string | null; gasto: number; impressoes: number; cliques: number; mensagens: number }
+type Ad = { ad_id: string; campanha_id: string | null; adset_id: string | null; nome: string; status: string | null; gasto: number; impressoes: number; cliques: number; mensagens: number }
 
 const today = new Date().toISOString().slice(0, 10)
 const thirty = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10)
@@ -26,9 +25,6 @@ export default function MetaAdsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [adsets, setAdsets] = useState<Adset[]>([])
   const [ads, setAds] = useState<Ad[]>([])
-  const [cIns, setCIns] = useState<Insight[]>([])
-  const [aIns, setAIns] = useState<Insight[]>([])
-  const [dIns, setDIns] = useState<Insight[]>([])
   const [openCampaigns, setOpenCampaigns] = useState<Record<string, boolean>>({})
   const [openAdsets, setOpenAdsets] = useState<Record<string, boolean>>({})
   const [msg, setMsg] = useState<string | null>(null)
@@ -36,51 +32,27 @@ export default function MetaAdsPage() {
   async function load() {
     setLoading(true)
     setMsg(null)
-    const [acc, c, a, d, ic, ia, id] = await Promise.all([
+    const [acc, c, a, d] = await Promise.all([
       supabase.from("meta_campanhas").select("id, conta, nome, status").order("nome"),
-      supabase.from("meta_campanhas").select("id, nome, status, conta").order("nome"),
-      supabase.from("meta_adsets").select("id, campanha_id, nome, status").order("nome"),
-      supabase.from("meta_ads").select("id, campanha_id, adset_id, nome, status").order("nome"),
-      supabase.from("meta_insights_campaign_daily").select("campanha_id, data, gasto, impressoes, cliques, mensagens_iniciadas").gte("data", since).lte("data", until),
-      supabase.from("meta_insights_adset_daily").select("adset_id, campanha_id, data, gasto, impressoes, cliques, mensagens_iniciadas").gte("data", since).lte("data", until),
-      supabase.from("meta_insights_ad_daily").select("ad_id, adset_id, campanha_id, data, gasto, impressoes, cliques, mensagens_iniciadas").gte("data", since).lte("data", until),
+      supabase.from("v_meta_campaign_totals").select("campanha_id, conta, nome, status, gasto, impressoes, cliques, mensagens").order("nome"),
+      supabase.from("v_meta_adset_totals").select("adset_id, campanha_id, nome, status, gasto, impressoes, cliques, mensagens").order("nome"),
+      supabase.from("v_meta_ad_totals").select("ad_id, campanha_id, adset_id, nome, status, gasto, impressoes, cliques, mensagens").order("nome"),
     ])
-
     setAccounts((acc.data as Account[]) || [])
     setCampaigns((c.data as Campaign[]) || [])
     setAdsets((a.data as Adset[]) || [])
     setAds((d.data as Ad[]) || [])
-    setCIns((ic.data as Insight[]) || [])
-    setAIns((ia.data as Insight[]) || [])
-    setDIns((id.data as Insight[]) || [])
-
     if (!accountId && acc.data?.[0]?.conta) setAccountId(acc.data[0].conta || "")
-    if (!(acc.data?.length || c.data?.length || a.data?.length || d.data?.length || ic.data?.length || ia.data?.length || id.data?.length)) {
-      setMsg("Sem dados para o período/conta selecionados. Tente ampliar a data ou escolher outra conta.")
-    }
+    if (!(acc.data?.length || c.data?.length || a.data?.length || d.data?.length)) setMsg("Sem dados para a seleção atual.")
     setLoading(false)
   }
 
   useEffect(() => { load() }, [])
 
-  const cMap = useMemo(() => groupBy(cIns, x => x.campanha_id || ""), [cIns])
-  const aMap = useMemo(() => groupBy(aIns, x => x.adset_id || ""), [aIns])
-  const dMap = useMemo(() => groupBy(dIns, x => x.ad_id || ""), [dIns])
+  const filteredCampaigns = useMemo(() => campaigns.filter(c => !accountId || c.conta === accountId).sort((a: any, b: any) => (b[sortBy] || 0) - (a[sortBy] || 0)), [campaigns, accountId, sortBy])
   const adsetsByCampaign = useMemo(() => groupBy(adsets, x => x.campanha_id || ""), [adsets])
   const adsByAdset = useMemo(() => groupBy(ads, x => x.adset_id || ""), [ads])
-
-  const filteredCampaigns = useMemo(() => {
-    const rows = campaigns.filter(c => !accountId || c.conta === accountId)
-    return rows.map(c => {
-      const rows = cMap[c.id] || []
-      return { ...c, gasto: sum(rows, x => x.gasto), mensagens: sum(rows, x => x.mensagens_iniciadas), cliques: sum(rows, x => x.cliques), impressoes: sum(rows, x => x.impressoes) }
-    }).sort((a: any, b: any) => (b[sortBy] || 0) - (a[sortBy] || 0))
-  }, [campaigns, accountId, cMap, sortBy])
-
-  function resCampaign(id: string) { const r = cMap[id] || []; return totals(r) }
-  function resAdset(id: string) { const r = aMap[id] || []; return totals(r) }
-  function resAd(id: string) { const r = dMap[id] || []; return totals(r) }
-  const total = totals(cIns)
+  const total = useMemo(() => ({ gasto: sum(filteredCampaigns, x => x.gasto), impressoes: sum(filteredCampaigns, x => x.impressoes), cliques: sum(filteredCampaigns, x => x.cliques), mensagens: sum(filteredCampaigns, x => x.mensagens) }), [filteredCampaigns])
 
   async function sync() {
     if (!accountId) { setMsg("Escolha uma conta antes de sincronizar."); return }
@@ -122,17 +94,15 @@ export default function MetaAdsPage() {
 
     <Card><CardHeader><CardTitle className="text-base">Campanhas</CardTitle></CardHeader><CardContent className="space-y-4">
       {filteredCampaigns.length === 0 ? <p className="text-sm text-muted-foreground">Sem campanhas para essa conta/período.</p> : filteredCampaigns.map(c => {
-        const r = resCampaign(c.id)
-        const childAdsets = (adsetsByCampaign[c.id] || []).sort((x:any,y:any)=> (resAdset(y.id)[sortBy]||0)-(resAdset(x.id)[sortBy]||0))
-        const open = !!openCampaigns[c.id]
-        return <div key={c.id} className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div className="space-y-2"><CardTitle className="text-base">{c.nome}</CardTitle><div className="flex flex-wrap gap-2"><Badge>{label(c.status)}</Badge><Badge variant="secondary">{childAdsets.length} conjuntos</Badge></div></div><button className="rounded-lg border px-3 py-2 text-sm hover:bg-muted" onClick={() => setOpenCampaigns(p => ({...p,[c.id]:!p[c.id]}))}>{open ? "Ocultar" : "Ver conjuntos"}</button></div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Mini label="Gasto" value={brl(r.gasto)} /><Mini label="Impressões" value={String(r.impressoes)} /><Mini label="Cliques" value={String(r.cliques)} /><Mini label="Resultados" value={String(r.mensagens)} /></div>
+        const childAdsets = (adsetsByCampaign[c.campanha_id] || []).sort((x:any,y:any)=> (y[sortBy]||0)-(x[sortBy]||0))
+        const open = !!openCampaigns[c.campanha_id]
+        return <div key={c.campanha_id} className="rounded-xl border bg-card p-4 space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div className="space-y-2"><CardTitle className="text-base">{c.nome}</CardTitle><div className="flex flex-wrap gap-2"><Badge>{label(c.status)}</Badge><Badge variant="secondary">{childAdsets.length} conjuntos</Badge></div></div><button className="rounded-lg border px-3 py-2 text-sm hover:bg-muted" onClick={() => setOpenCampaigns(p => ({...p,[c.campanha_id]:!p[c.campanha_id]}))}>{open ? "Ocultar" : "Ver conjuntos"}</button></div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Mini label="Gasto" value={brl(c.gasto)} /><Mini label="Impressões" value={String(c.impressoes)} /><Mini label="Cliques" value={String(c.cliques)} /><Mini label="Resultados" value={String(c.mensagens)} /></div>
           {open && <div className="space-y-3 border-t pt-4">{childAdsets.length ? childAdsets.map(a => {
-            const rr = resAdset(a.id)
-            const childAds = (adsByAdset[a.id] || []).sort((x:any,y:any)=> (resAd(y.id)[sortBy]||0)-(resAd(x.id)[sortBy]||0))
-            const o = !!openAdsets[a.id]
-            return <div key={a.id} className="rounded-xl border bg-background p-4 space-y-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div className="space-y-2"><div className="flex items-center gap-2"><Layers3 className="h-4 w-4 text-muted-foreground" /><h3 className="font-medium">{a.nome}</h3></div><div className="flex flex-wrap gap-2"><Badge>{label(a.status)}</Badge><Badge variant="secondary">{childAds.length} anúncios</Badge></div></div><button className="rounded-lg border px-3 py-2 text-sm hover:bg-muted" onClick={() => setOpenAdsets(p => ({...p,[a.id]:!p[a.id]}))}>{o ? "Ocultar" : "Ver anúncios"}</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Mini label="Gasto" value={brl(rr.gasto)} /><Mini label="Impressões" value={String(rr.impressoes)} /><Mini label="Cliques" value={String(rr.cliques)} /><Mini label="Resultados" value={String(rr.mensagens)} /></div>{o && <div className="space-y-3 border-t pt-4">{childAds.length ? childAds.map(ad => { const ra = resAd(ad.id); return <div key={ad.id} className="rounded-xl border bg-muted/30 p-4"><div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between"><div className="space-y-2"><h4 className="font-medium">{ad.nome}</h4><Badge>{label(ad.status)}</Badge></div><div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4 w-full md:w-auto md:min-w-[520px]"><Mini label="Gasto" value={brl(ra.gasto)} /><Mini label="Impressões" value={String(ra.impressoes)} /><Mini label="Cliques" value={String(ra.cliques)} /><Mini label="Resultados" value={String(ra.mensagens)} /></div></div></div> }) : <p className="text-sm text-muted-foreground">Sem anúncios para este conjunto.</p>}</div>}</div>
+            const childAds = (adsByAdset[a.adset_id] || []).sort((x:any,y:any)=> (y[sortBy]||0)-(x[sortBy]||0))
+            const o = !!openAdsets[a.adset_id]
+            return <div key={a.adset_id} className="rounded-xl border bg-background p-4 space-y-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div className="space-y-2"><div className="flex items-center gap-2"><Layers3 className="h-4 w-4 text-muted-foreground" /><h3 className="font-medium">{a.nome}</h3></div><div className="flex flex-wrap gap-2"><Badge>{label(a.status)}</Badge><Badge variant="secondary">{childAds.length} anúncios</Badge></div></div><button className="rounded-lg border px-3 py-2 text-sm hover:bg-muted" onClick={() => setOpenAdsets(p => ({...p,[a.adset_id]:!p[a.adset_id]}))}>{o ? "Ocultar" : "Ver anúncios"}</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Mini label="Gasto" value={brl(a.gasto)} /><Mini label="Impressões" value={String(a.impressoes)} /><Mini label="Cliques" value={String(a.cliques)} /><Mini label="Resultados" value={String(a.mensagens)} /></div>{o && <div className="space-y-3 border-t pt-4">{childAds.length ? childAds.map(ad => <div key={ad.ad_id} className="rounded-xl border bg-muted/30 p-4"><div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between"><div className="space-y-2"><h4 className="font-medium">{ad.nome}</h4><Badge>{label(ad.status)}</Badge></div><div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4 w-full md:w-auto md:min-w-[520px]"><Mini label="Gasto" value={brl(ad.gasto)} /><Mini label="Impressões" value={String(ad.impressoes)} /><Mini label="Cliques" value={String(ad.cliques)} /><Mini label="Resultados" value={String(ad.mensagens)} /></div></div></div>) : <p className="text-sm text-muted-foreground">Sem anúncios para este conjunto.</p>}</div>}</div>
           }) : <p className="text-sm text-muted-foreground">Sem conjuntos para esta campanha.</p>}</div>}
         </div>
       })}
@@ -143,7 +113,6 @@ export default function MetaAdsPage() {
 function Field({ label, children }: any) { return <div><p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">{label}</p>{children}</div> }
 function label(status: string | null) { if (!status) return "—"; const s = status.toUpperCase(); if (s === "ACTIVE") return "Ativa"; if (s === "PAUSED") return "Pausada"; if (s === "ARCHIVED") return "Arquivada"; return s }
 function sum<T>(arr: T[], pick: (x: T) => number) { return arr.reduce((a, x) => a + Number(pick(x) || 0), 0) }
-function totals(arr: any[]) { return { gasto: sum(arr, x => x.gasto), impressoes: sum(arr, x => x.impressoes), cliques: sum(arr, x => x.cliques), mensagens: sum(arr, x => x.mensagens_iniciadas) } }
 function groupBy<T>(arr: T[], key: (x: T) => string) { return arr.reduce((m: Record<string, T[]>, x) => ((m[key(x)] ||= []).push(x), m), {}) }
 function Kpi({ icon: Icon, label, value, accent }: any) { return <Card><CardContent className="p-5"><div className="flex items-start justify-between gap-3"><div className="space-y-1"><p className="text-sm text-muted-foreground">{label}</p><p className={`text-2xl font-semibold tracking-tight ${accent ? "text-primary" : ""}`}>{value}</p></div><div className="rounded-xl border bg-muted p-2"><Icon className="h-5 w-5 text-muted-foreground" /></div></div></CardContent></Card> }
 function Mini({ label, value }: any) { return <div className="rounded-xl border bg-muted/40 p-3"><p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
