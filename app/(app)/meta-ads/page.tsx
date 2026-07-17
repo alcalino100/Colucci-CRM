@@ -148,6 +148,16 @@ export default function MetaAdsPage() {
     return m
   }, [ads])
 
+  const porDia = useMemo(() => {
+    const m = new Map<string, number>()
+    insCampaign.forEach((row) => {
+      m.set(row.data, (m.get(row.data) ?? 0) + Number(row.gasto || 0))
+    })
+    return [...m.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([data, gasto]) => ({ dia: data.slice(5), gasto }))
+  }, [insCampaign])
+
   function resumoCampanha(id: string) {
     const rows = insCampaignMap.get(id) ?? []
     return {
